@@ -36,5 +36,5 @@ def setup_raft_state_machine():
     p.kill()
 
 def start_state_machine(incoming, outgoing):
-    state_machine = RaftStateMachine(0, random.randint(150, 300), incoming, outgoing)
+    state_machine = RaftStateMachine(1, 0, random.randint(150, 300), incoming, outgoing)
     state_machine.run()

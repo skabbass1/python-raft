@@ -4,6 +4,7 @@ import time
 class RaftStateMachine:
     def __init__(
         self,
+        node_id,
         term,
         election_timeout,
         incoming_message_queue,
@@ -18,7 +19,7 @@ class RaftStateMachine:
         self._votes_received = 0
         self._start_time = None
 
-        self._node_id = 1
+        self._node_id = node_id
         self._last_log_index = None
         self._last_log_term = None
 
