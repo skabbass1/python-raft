@@ -10,7 +10,7 @@ from raft.raft_cluster_network_listener import RaftClusterNetworkListener
 
 def test_raft_cluster_network_listener(message_queue):
     """
-    it reads, parses and enques for processing JSON messages received from peers 
+    it reads, parses and enques for processing JSON messages received from peers
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
