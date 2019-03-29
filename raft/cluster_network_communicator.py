@@ -4,7 +4,7 @@ import queue
 import json
 import struct
 
-class RaftClusterNetworkCommunicator:
+class ClusterNetworkCommunicator:
     def __init__(self, peers, message_queue):
         self._peers = peers
         self._message_queue = message_queue

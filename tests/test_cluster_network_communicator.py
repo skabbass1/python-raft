@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from raft.raft_cluster_network_communicator import RaftClusterNetworkCommunicator
-from raft.raft_cluster_network_listener import RaftClusterNetworkListener
+from raft.cluster_network_communicator import ClusterNetworkCommunicator
+from raft.cluster_network_listener import ClusterNetworkListener
 
 def test_sends_messages_to_connected_peers(peer_queues):
     received_messages = []
@@ -80,7 +80,7 @@ def start_peer_listeners():
     communicator.kill()
 
 def start_listener(peer_id, address, message_queue):
-    listener = RaftClusterNetworkListener(address, peer_id, message_queue)
+    listener = ClusterNetworkListener(address, peer_id, message_queue)
     listener.run()
 
 def start_communicator(peers):
@@ -97,5 +97,5 @@ def start_communicator(peers):
         }
     }
     q.put(msg)
-    communicator = RaftClusterNetworkCommunicator(peers,q)
+    communicator = ClusterNetworkCommunicator(peers,q)
     communicator.run()

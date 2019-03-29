@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from raft.raft_cluster_network_listener import RaftClusterNetworkListener
+from raft.cluster_network_listener import ClusterNetworkListener
 
 def test_raft_cluster_network_listener(message_queue):
     """
@@ -58,5 +58,5 @@ def setup_raft_listener():
     p.kill()
 
 def start_listener(message_queue):
-    listener = RaftClusterNetworkListener(('localhost', 5000), 1, message_queue)
+    listener = ClusterNetworkListener(('localhost', 5000), 1, message_queue)
     listener.run()

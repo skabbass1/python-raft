@@ -2,7 +2,7 @@ import queue
 import sys
 import time
 
-class RaftStateMachine:
+class StateMachine:
     def __init__(
         self,
         node_id,

@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from raft.raft_state_machine import RaftStateMachine
+from raft.state_machine import StateMachine
 
 def test_election_start_after_election_timeout(state_machine2):
     item = state_machine2.get_nowait()
@@ -132,7 +132,7 @@ def setup_raft_state_machine():
     p.kill()
 
 def start_state_machine(incoming, outgoing):
-    state_machine = RaftStateMachine(
+    state_machine = StateMachine(
         1,
         [('p1,'), ('p2,'), ('p3,'), ('p4,'), ('p5,')],
         0,

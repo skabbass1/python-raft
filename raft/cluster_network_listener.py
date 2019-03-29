@@ -4,7 +4,7 @@ import select
 import struct
 import json
 
-class RaftClusterNetworkListener:
+class ClusterNetworkListener:
     def __init__(self, server_address, node_id, message_queue):
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setblocking(0)
