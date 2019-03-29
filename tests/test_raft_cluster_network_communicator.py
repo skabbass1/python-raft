@@ -11,6 +11,7 @@ def test_sends_messages_to_connected_peers(peer_queues):
     for peer_queue in peer_queues:
         try:
             msg = peer_queue.get_nowait()
+            # TODO improve this by removing the starting up message
             if msg == b'Starting up':
                 msg = peer_queue.get_nowait()
                 received_messages.append(msg)
