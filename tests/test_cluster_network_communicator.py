@@ -5,6 +5,7 @@ import pytest
 
 from raft.cluster_network_communicator import ClusterNetworkCommunicator
 from raft.cluster_network_listener import ClusterNetworkListener
+from raft.structures.node_config  import NodeConfig
 
 def test_sends_messages_to_connected_peers(peer_queues):
     received_messages = []
@@ -58,17 +59,17 @@ def test_sends_messages_to_connected_peers(peer_queues):
 
 @pytest.fixture(name='peer_queues')
 def start_peer_listeners():
-    peers = [('localhost', 5000), ('localhost', 5001), ('localhost', 5003)]
+    peer_nodes = [NodeConfig('peer1', ('localhost', 5000)), NodeConfig('peer2', ('localhost', 5001)), NodeConfig('peer3',('localhost', 5003))]
     procs = []
     peer_queues = []
-    for peer_id, address in enumerate(peers):
+    for peer in peer_nodes:
         q = mp.Queue()
-        p = mp.Process(target=start_listener, args=(peer_id, address, q))
+        p = mp.Process(target=start_listener, args=(peer.name, peer.address,  q))
         peer_queues.append(q)
         procs.append(p)
         p.start()
 
-    communicator = mp.Process(target=start_communicator, args=(peers,))
+    communicator = mp.Process(target=start_communicator, args=(peer_nodes,))
     communicator.start()
 
     time.sleep(1)
@@ -79,8 +80,8 @@ def start_peer_listeners():
 
     communicator.kill()
 
-def start_listener(peer_id, address, message_queue):
-    listener = ClusterNetworkListener(address, peer_id, message_queue)
+def start_listener(peer_name, address, message_queue):
+    listener = ClusterNetworkListener(address, peer_name, message_queue)
     listener.run()
 
 def start_communicator(peers):

@@ -5,8 +5,8 @@ import json
 import struct
 
 class ClusterNetworkCommunicator:
-    def __init__(self, peers, message_queue):
-        self._peers = peers
+    def __init__(self, peer_node_configs, message_queue):
+        self._peer_node_configs = peer_node_configs
         self._message_queue = message_queue
 
     def run(self):
@@ -18,9 +18,9 @@ class ClusterNetworkCommunicator:
                 pass
 
     def _send_to_peers(self, msg):
-        for p in self._peers:
+        for config in self._peer_node_configs:
             try:
-                s = self._get_connected_socket(p)
+                s = self._get_connected_socket(config.address)
                 s.send(self._pack(msg))
                 s.close()
             except ConnectionRefusedError:
