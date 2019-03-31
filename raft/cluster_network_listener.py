@@ -6,11 +6,9 @@ import struct
 from raft.structures.messages import from_json
 
 class ClusterNetworkListener:
-    def __init__(self, server_address, node_id, message_queue):
+    def __init__(self, node_config, message_queue):
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server.setblocking(0)
-        self._server_address = server_address
-        self._node_id = node_id
+        self._node_config = node_config
         self._message_queue = message_queue
 
         #TODO make configurable
@@ -19,14 +17,14 @@ class ClusterNetworkListener:
         self._message_header_len = 4
 
     def run(self):
-        print(f'RaftListener for node_id {self._node_id} starting up', file=sys.stdout)
+        print(f'RaftListener for node name "{self._node_config.name}" starting up', file=sys.stdout)
         self._listen()
 
     def _listen(self):
-        self._server.bind(self._server_address)
+        self._server.setblocking(0)
+        self._server.bind(self._node_config.address)
         self._server.listen(5)
         inputs = [self._server]
-        self._message_queue.put(b'Starting up')
         while inputs:
             readable, writable, exceptional = select.select(inputs, [], inputs, self._timeout_seconds)
             for s in readable:

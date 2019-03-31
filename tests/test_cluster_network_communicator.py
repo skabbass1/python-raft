@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import time
+import queue
 
 import pytest
 
@@ -8,15 +9,12 @@ from raft.cluster_network_listener import ClusterNetworkListener
 from raft.structures.node_config  import NodeConfig
 from raft.structures.messages import AppendEntries
 
-def test_sends_messages_to_connected_peers(peer_queues):
+def test_sends_messages_to_connected_peers(peer_listener_queues, communicator):
     received_messages = []
-    for peer_queue in peer_queues:
+    for peer_queue in peer_listener_queues:
         try:
             msg = peer_queue.get_nowait()
-            # TODO improve this by removing the starting up message
-            if msg == b'Starting up':
-                msg = peer_queue.get_nowait()
-                received_messages.append(msg)
+            received_messages.append(msg)
         except queue.Empty:
             pass
     assert len(received_messages) == 3
@@ -49,34 +47,37 @@ def test_sends_messages_to_connected_peers(peer_queues):
 
     assert expected == received_messages
 
-@pytest.fixture(name='peer_queues')
+@pytest.fixture(name='peer_listener_queues')
 def start_peer_listeners():
-    peer_nodes = [NodeConfig('peer1', ('localhost', 5000)), NodeConfig('peer2', ('localhost', 5001)), NodeConfig('peer3',('localhost', 5003))]
     procs = []
-    peer_queues = []
-    for peer in peer_nodes:
+    peer_listener_queues = []
+    for peer in peer_node_configs():
         q = mp.Queue()
         p = mp.Process(target=start_listener, args=(peer.name, peer.address,  q))
-        peer_queues.append(q)
+        peer_listener_queues.append(q)
         procs.append(p)
         p.start()
 
-    communicator = mp.Process(target=start_communicator, args=(peer_nodes,))
-    communicator.start()
-
     time.sleep(1)
-    yield peer_queues
+
+    yield peer_listener_queues
 
     for p in procs:
         p.kill()
 
-    communicator.kill()
 
-def start_listener(peer_name, address, message_queue):
-    listener = ClusterNetworkListener(address, peer_name, message_queue)
-    listener.run()
+@pytest.fixture(name='communicator')
+def communicator(peer_listener_queues):
+    com = mp.Process(target=start_communicator)
+    com.start()
 
-def start_communicator(peers):
+    time.sleep(1)
+
+    yield
+
+    com.kill()
+
+def start_communicator():
     q = mp.Queue()
     msg = AppendEntries(
         term=1,
@@ -87,5 +88,17 @@ def start_communicator(peers):
         leader_commit=24
     )
     q.put(msg)
-    communicator = ClusterNetworkCommunicator(peers,q)
+    communicator = ClusterNetworkCommunicator(peer_node_configs() ,q)
     communicator.run()
+
+def start_listener(peer_name, address, message_queue):
+    listener = ClusterNetworkListener(address, peer_name, message_queue)
+    listener.run()
+
+def peer_node_configs():
+    return [
+        NodeConfig('peer1', ('localhost', 5000)),
+        NodeConfig('peer2', ('localhost', 5001)),
+        NodeConfig('peer3',('localhost', 5003))
+    ]
+
