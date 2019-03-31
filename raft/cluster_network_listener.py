@@ -2,7 +2,8 @@ import socket
 import sys
 import select
 import struct
-import json
+
+from raft.structures.messages import from_json
 
 class ClusterNetworkListener:
     def __init__(self, server_address, node_id, message_queue):
@@ -54,5 +55,5 @@ class ClusterNetworkListener:
         return content
 
     def _parse_content(self, content):
-        return json.loads(content.decode())
+        return from_json(content.decode())
 

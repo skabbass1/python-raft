@@ -4,6 +4,8 @@ import queue
 import json
 import struct
 
+from raft.structures.messages import to_json
+
 class ClusterNetworkCommunicator:
     def __init__(self, peer_node_configs, message_queue):
         self._peer_node_configs = peer_node_configs
@@ -34,7 +36,7 @@ class ClusterNetworkCommunicator:
          return s
 
     def _pack(self, msg):
-        content = json.dumps(msg).encode()
+        content = to_json(msg).encode()
         content_len = struct.pack('>I', len(content))
         return content_len + content
 

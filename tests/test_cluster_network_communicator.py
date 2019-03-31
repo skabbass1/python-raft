@@ -6,6 +6,7 @@ import pytest
 from raft.cluster_network_communicator import ClusterNetworkCommunicator
 from raft.cluster_network_listener import ClusterNetworkListener
 from raft.structures.node_config  import NodeConfig
+from raft.structures.messages import AppendEntries
 
 def test_sends_messages_to_connected_peers(peer_queues):
     received_messages = []
@@ -20,39 +21,30 @@ def test_sends_messages_to_connected_peers(peer_queues):
             pass
     assert len(received_messages) == 3
     expected = [
-        {
-            'message_type': 'AppendEntries',
-            'args': {
-                'term': 1,
-                'leader_id': 123,
-                'prev_log_index': 23,
-                'prev_log_term': 0,
-                'entries': ['set x 1'],
-                'leader_commit': 24
-            }
-        },
-        {
-            'message_type': 'AppendEntries',
-            'args': {
-                'term': 1,
-                'leader_id': 123,
-                'prev_log_index': 23,
-                'prev_log_term': 0,
-                'entries': ['set x 1'],
-                'leader_commit': 24
-            }
-        },
-        {
-            'message_type': 'AppendEntries',
-            'args': {
-                'term': 1,
-                'leader_id': 123,
-                'prev_log_index': 23,
-                'prev_log_term': 0,
-                'entries': ['set x 1'],
-                'leader_commit': 24
-            }
-        }
+        AppendEntries(
+            term=1,
+            leader_id=123,
+            prev_log_index=23,
+            prev_log_term=0,
+            entries=['set x 1'],
+            leader_commit=24
+        ),
+        AppendEntries(
+            term=1,
+            leader_id=123,
+            prev_log_index=23,
+            prev_log_term=0,
+            entries=['set x 1'],
+            leader_commit=24
+        ),
+        AppendEntries(
+            term=1,
+            leader_id=123,
+            prev_log_index=23,
+            prev_log_term=0,
+            entries=['set x 1'],
+            leader_commit=24
+        )
     ]
 
     assert expected == received_messages
@@ -86,17 +78,14 @@ def start_listener(peer_name, address, message_queue):
 
 def start_communicator(peers):
     q = mp.Queue()
-    msg = {
-        'message_type': 'AppendEntries',
-        'args': {
-            'term': 1,
-            'leader_id': 123,
-            'prev_log_index': 23,
-            'prev_log_term': 0,
-            'entries': ['set x 1'],
-            'leader_commit': 24
-        }
-    }
+    msg = AppendEntries(
+        term=1,
+        leader_id=123,
+        prev_log_index=23,
+        prev_log_term=0,
+        entries=['set x 1'],
+        leader_commit=24
+    )
     q.put(msg)
     communicator = ClusterNetworkCommunicator(peers,q)
     communicator.run()
