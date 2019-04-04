@@ -17,32 +17,32 @@ def test_election_start_after_election_timeout(state_machine2):
     assert item == RequestVote(
         term=1,
         candidate_id='state_machine1',
-        last_log_index=None,
-        last_log_term=None
+        prev_log_index=None,
+        prev_log_term=None
     )
 
 def test_election_victory_with_majority_vote(state_machine):
     msg = state_machine.get(timeout=1)
-    assert msg['message_type'] == 'AppendEntries'
-    assert msg['args']['term'] == 1
+    assert msg.__class__ == AppendEntries
+    assert msg.term == 1
 
 def test_election_restart_without_majority_vote(state_machine3):
     msg1 = state_machine3.get(timeout=1)
     msg2 = state_machine3.get(timeout=1)
 
-    assert msg1['message_type'] == 'RequestVote'
-    assert msg1['args']['term'] == 2
+    assert msg1.__class__ == RequestVote
+    assert msg1.term  == 2
 
-    assert msg2['message_type'] == 'RequestVote'
-    assert msg2['args']['term'] == 3
+    assert msg2.__class__ == RequestVote
+    assert msg2.term ==  3
 
 def test_legitimate_leader_discovery_mid_election(state_machine4):
 
     # This is a weak test. Essentially  making sure the next election
     # begins after the latest leader term
     msg = state_machine4.get(timeout=1)
-    assert msg['message_type'] == 'RequestVote'
-    assert msg['args']['term'] == 701
+    assert msg.__class__ == RequestVote
+    assert msg.term == 701
 
 @pytest.fixture(name='state_machine4')
 def state_machine4():
@@ -55,23 +55,22 @@ def state_machine4():
     # then grant votes
     m =  outgoing.get(timeout=1)
     for i in range(2, 3):
-        msg = {
-            'message_type': 'RequestVoteResponse',
-            'vote_granted': True,
-            'term': 1
-        }
+        msg = RequestVoteResponse(
+            vote_granted=True,
+            term=1
+        )
+
         incoming.put(msg)
 
-        msg = {
-            'message_type': 'AppendEntries',
-            'args': {
-                'term': 700,
-                'leader_id': 5,
-                'prev_log_index': None,
-                'prev_log_term': None,
-                'leader_commit': None
-            }
-        }
+        msg = AppendEntries(
+            term=700,
+            leader_id=5,
+            prev_log_index=None,
+            prev_log_term=None,
+            leader_commit=None,
+            entries=[]
+        )
+
         incoming.put(msg)
 
     yield outgoing
@@ -102,11 +101,11 @@ def state_machine3():
     # then grant votes
     m =  outgoing.get(timeout=1)
     for i in range(2, 3):
-        msg = {
-            'message_type': 'RequestVoteResponse',
-            'vote_granted': True,
-            'term': 1
-        }
+        msg = RequestVoteResponse(
+            vote_granted=True,
+            term=1
+        )
+
         incoming.put(msg)
 
     yield outgoing
@@ -124,11 +123,10 @@ def setup_raft_state_machine():
     # then grant votes
     outgoing.get(timeout=1)
     for i in range(2, 5):
-        msg = {
-            'message_type': 'RequestVoteResponse',
-            'vote_granted': True,
-            'term': 1
-        }
+        msg = RequestVoteResponse(
+            vote_granted=True,
+            term=1
+        )
         incoming.put(msg)
 
     yield outgoing

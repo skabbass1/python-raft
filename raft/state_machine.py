@@ -29,8 +29,8 @@ class StateMachine:
         self._state = 'follower'
         self._votes_received = 0
         self._start_time = None
-        self._last_log_index = None
-        self._last_log_term = None
+        self._prev_log_index = None
+        self._prev_log_term = None
         self._commit_index = None
 
     def run(self):
@@ -61,8 +61,8 @@ class StateMachine:
         message = RequestVote(
             term=self._term,
             candidate_id=self._node_config.name,
-            last_log_index=self._last_log_index,
-            last_log_term=self._last_log_term
+            prev_log_index=self._prev_log_index,
+            prev_log_term=self._prev_log_term
         )
         self._outgoing_message_queue.put_nowait(message)
 
@@ -95,7 +95,8 @@ class StateMachine:
             leader_id=self._node_config.name,
             prev_log_index=self._prev_log_index,
             prev_log_term=self._prev_log_term,
-            leader_commit=self._commit_index
+            leader_commit=self._commit_index,
+            entries=[]
         )
         self._outgoing_message_queue.put_nowait(message)
 
