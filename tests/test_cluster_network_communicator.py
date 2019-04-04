@@ -51,9 +51,9 @@ def test_sends_messages_to_connected_peers(peer_listener_queues, communicator):
 def start_peer_listeners():
     procs = []
     peer_listener_queues = []
-    for peer in peer_node_configs():
+    for node_config in peer_node_configs():
         q = mp.Queue()
-        p = mp.Process(target=start_listener, args=(peer.name, peer.address,  q))
+        p = mp.Process(target=start_listener, args=(node_config,  q))
         peer_listener_queues.append(q)
         procs.append(p)
         p.start()
@@ -91,8 +91,8 @@ def start_communicator():
     communicator = ClusterNetworkCommunicator(peer_node_configs() ,q)
     communicator.run()
 
-def start_listener(peer_name, address, message_queue):
-    listener = ClusterNetworkListener(address, peer_name, message_queue)
+def start_listener(node_config,  message_queue):
+    listener = ClusterNetworkListener(node_config,  message_queue)
     listener.run()
 
 def peer_node_configs():
