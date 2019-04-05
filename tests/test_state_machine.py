@@ -12,57 +12,56 @@ from raft.structures.messages import (
     RequestVoteResponse,
 )
 
-def test_election_start_after_election_timeout(state_machine2):
-    item = state_machine2.get_nowait()
-    assert item == RequestVote(
+def test_election_start_after_election_timeout(outgoing_message_queue1):
+    message = outgoing_message_queue1.get_nowait()
+    assert message == RequestVote(
         term=1,
         candidate_id='state_machine1',
         prev_log_index=None,
         prev_log_term=None
     )
 
-def test_election_victory_with_majority_vote(state_machine):
-    msg = state_machine.get(timeout=1)
-    assert msg.__class__ == AppendEntries
-    assert msg.term == 1
+def test_election_victory_with_majority_vote(outgoing_message_queue2):
+    message = outgoing_message_queue2.get(timeout=1)
+    assert message.__class__ == AppendEntries
+    assert message.term == 1
 
-def test_election_restart_without_majority_vote(state_machine3):
-    msg1 = state_machine3.get(timeout=1)
-    msg2 = state_machine3.get(timeout=1)
+def test_election_restart_without_majority_vote(outgoing_message_queue3):
+    message1 = outgoing_message_queue3.get(timeout=1)
+    message2 = outgoing_message_queue3.get(timeout=1)
 
-    assert msg1.__class__ == RequestVote
-    assert msg1.term  == 2
+    assert message1.__class__ == RequestVote
+    assert message1.term  == 2
 
-    assert msg2.__class__ == RequestVote
-    assert msg2.term ==  3
+    assert message2.__class__ == RequestVote
+    assert message2.term ==  3
 
-def test_legitimate_leader_discovery_mid_election(state_machine4):
-
+def test_legitimate_leader_discovery_mid_election(outgoing_message_queue4):
     # This is a weak test. Essentially  making sure the next election
     # begins after the latest leader term
-    msg = state_machine4.get(timeout=1)
-    assert msg.__class__ == RequestVote
-    assert msg.term == 701
+    message = outgoing_message_queue4.get(timeout=1)
+    assert message.__class__ == RequestVote
+    assert message.term == 701
 
-@pytest.fixture(name='state_machine4')
-def state_machine4():
-    incoming = mp.Queue()
-    outgoing = mp.Queue()
-    p = mp.Process(target=start_state_machine, args=(incoming, outgoing))
-    p.start()
+@pytest.fixture(name='outgoing_message_queue4')
+def legitimate_leader_discovery_mid_election_setup():
+    incoming_message_queue = mp.Queue()
+    outgoing_message_queue = mp.Queue()
+    proc = mp.Process(target=start_state_machine, args=(incoming_message_queue, outgoing_message_queue))
+    proc.start()
 
     # wait for election to begin and
     # then grant votes
-    m =  outgoing.get(timeout=1)
+    outgoing_message_queue.get(timeout=1)
     for i in range(2, 3):
-        msg = RequestVoteResponse(
+        message = RequestVoteResponse(
             vote_granted=True,
             term=1
         )
 
-        incoming.put(msg)
+        incoming_message_queue.put(message)
 
-        msg = AppendEntries(
+        message = AppendEntries(
             term=700,
             leader_id=5,
             prev_log_index=None,
@@ -71,17 +70,20 @@ def state_machine4():
             entries=[]
         )
 
-        incoming.put(msg)
+        incoming_message_queue.put(message)
 
-    yield outgoing
+    yield outgoing_message_queue
 
-    p.kill()
+    proc.kill()
 
-@pytest.fixture(name='state_machine2')
-def state_machine2():
+@pytest.fixture(name='outgoing_message_queue1')
+def election_start_after_timeout_setup():
     incoming_message_queue = mp.Queue()
     outgoing_message_queue = mp.Queue()
-    proc = mp.Process(target=start_state_machine, args=(incoming_message_queue, outgoing_message_queue))
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(incoming_message_queue, outgoing_message_queue)
+    )
     proc.start()
 
     time.sleep(1)
@@ -90,48 +92,48 @@ def state_machine2():
 
     proc.kill()
 
-@pytest.fixture(name='state_machine3')
-def state_machine3():
-    incoming = mp.Queue()
-    outgoing = mp.Queue()
-    p = mp.Process(target=start_state_machine, args=(incoming, outgoing))
-    p.start()
+@pytest.fixture(name='outgoing_message_queue3')
+def election_restart_without_majority_vote_setup():
+    incoming_message_queue = mp.Queue()
+    outgoing_message_queue = mp.Queue()
+    proc = mp.Process(target=start_state_machine, args=(incoming_message_queue, outgoing_message_queue))
+    proc.start()
 
     # wait for election to begin and
     # then grant votes
-    m =  outgoing.get(timeout=1)
+    outgoing_message_queue.get(timeout=1)
     for i in range(2, 3):
-        msg = RequestVoteResponse(
+        message = RequestVoteResponse(
             vote_granted=True,
             term=1
         )
 
-        incoming.put(msg)
+        incoming_message_queue.put(message)
 
-    yield outgoing
+    yield outgoing_message_queue
 
-    p.kill()
+    proc.kill()
 
-@pytest.fixture(name='state_machine')
-def setup_raft_state_machine():
-    incoming = mp.Queue()
-    outgoing = mp.Queue()
-    p = mp.Process(target=start_state_machine, args=(incoming, outgoing))
-    p.start()
+@pytest.fixture(name='outgoing_message_queue2')
+def election_victory_with_majority_vote_setup():
+    incoming_message_queue = mp.Queue()
+    outgoing_message_queue = mp.Queue()
+    proc = mp.Process(target=start_state_machine, args=(incoming_message_queue, outgoing_message_queue))
+    proc.start()
 
     # wait for election to begin and
     # then grant votes
-    outgoing.get(timeout=1)
+    outgoing_message_queue.get(timeout=1)
     for i in range(2, 5):
-        msg = RequestVoteResponse(
+        message = RequestVoteResponse(
             vote_granted=True,
             term=1
         )
-        incoming.put(msg)
+        incoming_message_queue.put(message)
 
-    yield outgoing
+    yield outgoing_message_queue
 
-    p.kill()
+    proc.kill()
 
 def start_state_machine(incoming_message_queue, outgoing_message_queue):
     state_machine = StateMachine(
@@ -143,7 +145,6 @@ def start_state_machine(incoming_message_queue, outgoing_message_queue):
         outgoing_message_queue=outgoing_message_queue
     )
     state_machine.run()
-
 
 def peer_node_configs():
     return [
