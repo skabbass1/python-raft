@@ -1,0 +1,7 @@
+Leader  Election
+1) Handle RequestVote RPC call
+2) Randomize Election Timeout before start of each election
+3) Send periodic heartbeats from leader
+
+
+
