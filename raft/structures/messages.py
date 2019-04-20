@@ -17,6 +17,26 @@ RequestVoteResponse = namedtuple(
     ['term', 'vote_granted']
 )
 
+ClientRequest = namedtuple(
+        'ClientRequest',
+        ['command', 'data']
+)
+
+MajorityReplicated = namedtuple(
+         'MajorityReplicated',
+         ['term', 'prev_log_index', 'prev_log_term', 'entries', 'leader_commit']
+)
+
+SnapshotRequest = namedtuple(
+    'SnapshotRequest',
+    []
+)
+
+Snapshot = namedtuple(
+    'Snapshot',
+    ['commit_index', 'data']
+)
+
 def to_json(o):
     return json.dumps({
         'message_type': o.__class__.__name__,
