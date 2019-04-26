@@ -37,6 +37,21 @@ Snapshot = namedtuple(
     ['commit_index', 'data']
 )
 
+InitializeNextIndex = namedtuple(
+    'InitializeNextIndex',
+    ['last_log_index']
+)
+
+LocalStateSnapshotRequestForTesting = namedtuple(
+    'LocalStateSnapshotRequestForTesting',
+    []
+)
+
+LocalStateSnapshotForTesting = namedtuple(
+    'LocalStateSnapshotForTesting',
+    ['state']
+)
+
 def to_json(o):
     return json.dumps({
         'message_type': o.__class__.__name__,

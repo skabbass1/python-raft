@@ -53,27 +53,7 @@ def test_legitimate_leader_discovery_mid_election(outgoing_message_queue4):
     assert message.term == 701
 
 
-def test_commands_get_logged_and_added_to_replication_queue(replication_message_queue):
-    message1 = replication_message_queue.get(timeout=1)
-    message2 = replication_message_queue.get(timeout=1)
-
-    assert message1 == AppendEntries(
-            term=0,
-            leader_id='state_machine1',
-            prev_log_index=None,
-            prev_log_term=None,
-            entries=[LogEntry(0, 0, '_set', {'key': 'x', 'value': 1})],
-            leader_commit=-1
-   )
-    assert message2 == AppendEntries(
-            term=0,
-            leader_id='state_machine1',
-            prev_log_index=0,
-            prev_log_term=0,
-            entries=[LogEntry(1, 0, '_set', {'key': 'y', 'value': 2})],
-            leader_commit=-1
-   )
-
+def test_commands_get_logged_and_added_to(logged):
     # TODO Remove hardcoded log file name
     with open('tmp/0_1', 'rb') as f:
        contents = pickle.load(f)
@@ -95,23 +75,21 @@ def test_entries_get_committed_after_unordered_replication_success(commit_unorde
 
     assert contents == Snapshot(commit_index=2, data={'x': 1, 'y': 15})
 
-@pytest.fixture(name="commit")
+@pytest.fixture(name='commit')
 def test_entries_get_committed_after_replication_success_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = mp.Queue()
-    log_writer_message_queue = mp.Queue()
-    snapshot_writer_message_queue = mp.Queue()
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue()
+
+    }
     startup_state = "leader"
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
@@ -121,16 +99,16 @@ def test_entries_get_committed_after_replication_success_setup():
             target=start_snapshot_writer,
             args=(
                 'tmp',
-                incoming_message_queue,
-                snapshot_writer_message_queue,
+                event_queues['state_machine'],
+                event_queues['snapshot_writer'],
             )
     )
     snapshot_writer_proc.start()
 
     message1 = ClientRequest(command='_set', data={'key': 'x', 'value': 1})
     message2 = ClientRequest(command='_set', data={'key': 'y', 'value': 12})
-    incoming_message_queue.put(message1)
-    incoming_message_queue.put(message2)
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
 
     message1 = MajorityReplicated(
          term=0,
@@ -147,10 +125,10 @@ def test_entries_get_committed_after_replication_success_setup():
          entries=[LogEntry(1, 0, '_set', {'key': 'y', 'value': 12})],
          leader_commit=-1
      )
-    incoming_message_queue.put(message1)
-    incoming_message_queue.put(message2)
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
 
-    incoming_message_queue.put(SnapshotRequest())
+    event_queues['state_machine'].put(SnapshotRequest())
 
     exists = wait_for_snapshot_file('tmp/snapshot_1')
     if not exists:
@@ -165,21 +143,19 @@ def test_entries_get_committed_after_replication_success_setup():
 
 @pytest.fixture(name="commit_unordered")
 def test_entries_get_committed_after_unordered_replication_success_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = mp.Queue()
-    log_writer_message_queue = mp.Queue()
-    snapshot_writer_message_queue = mp.Queue()
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue()
+
+    }
     startup_state = "leader"
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
@@ -189,8 +165,8 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
             target=start_snapshot_writer,
             args=(
                 'tmp',
-                incoming_message_queue,
-                snapshot_writer_message_queue,
+                event_queues['state_machine'],
+                event_queues['snapshot_writer']
             )
     )
     snapshot_writer_proc.start()
@@ -199,9 +175,9 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
     message2 = ClientRequest(command='_set', data={'key': 'y', 'value': 12})
     message3 = ClientRequest(command='_set', data={'key': 'y', 'value': 15})
 
-    incoming_message_queue.put(message1)
-    incoming_message_queue.put(message2)
-    incoming_message_queue.put(message3)
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
+    event_queues['state_machine'].put(message3)
 
     message1 = MajorityReplicated(
          term=0,
@@ -226,11 +202,11 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
          entries=[LogEntry(2, 0, '_set', {'key': 'y', 'value': 15})],
          leader_commit=-1
      )
-    incoming_message_queue.put(message3)
-    incoming_message_queue.put(message2)
-    incoming_message_queue.put(message1)
+    event_queues['state_machine'].put(message3)
+    event_queues['state_machine'].put(message2)
+    event_queues['state_machine'].put(message1)
 
-    incoming_message_queue.put(SnapshotRequest())
+    event_queues['state_machine'].put(SnapshotRequest())
 
     exists = wait_for_snapshot_file('tmp/snapshot_2')
     if not exists:
@@ -242,30 +218,28 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
 
     proc.kill()
     snapshot_writer_proc.kill()
-@pytest.fixture(name="replication_message_queue")
-def test_commands_get_logged_and_added_to_replication_queue_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = mp.Queue()
-    log_writer_message_queue = mp.Queue()
-    snapshot_writer_message_queue = mp.Queue()
+@pytest.fixture(name="logged")
+def test_commands_get_logged():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue()
 
+    }
     startup_state = "leader"
+
     state_machine_proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
 
     log_writer_proc = mp.Process(
         target=start_log_writer,
-        args=('tmp', 2, log_writer_message_queue)
+        args=('tmp', 2, event_queues['log_writer'])
     )
 
     state_machine_proc.start()
@@ -273,14 +247,14 @@ def test_commands_get_logged_and_added_to_replication_queue_setup():
 
     message1 = ClientRequest(command='_set', data={'key': 'x', 'value': 1})
     message2 = ClientRequest(command='_set', data={'key': 'y', 'value': 2})
-    incoming_message_queue.put(message1)
-    incoming_message_queue.put(message2)
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
 
     exists = wait_for_log_file()
     if not exists:
         pytest.fail("LogWrite process failed to create logfile")
 
-    yield replication_message_queue
+    yield
 
     state_machine_proc.kill()
     log_writer_proc.kill()
@@ -289,21 +263,19 @@ def test_commands_get_logged_and_added_to_replication_queue_setup():
 
 @pytest.fixture(name='outgoing_message_queue4')
 def legitimate_leader_discovery_mid_election_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = None
-    log_writer_message_queue = None
-    snapshot_writer_message_queue = None
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': None,
+       'snapshot_writer': None,
+
+    }
     startup_state = None
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
@@ -311,7 +283,7 @@ def legitimate_leader_discovery_mid_election_setup():
 
     # wait for election to begin and
     # then grant votes
-    outgoing_message_queue.get(timeout=1)
+    event_queues['communicator'].get(timeout=1)
     for i in range(2, 3):
         message = RequestVoteResponse(
             vote_granted=True,
@@ -327,29 +299,27 @@ def legitimate_leader_discovery_mid_election_setup():
             entries=[]
         )
 
-        incoming_message_queue.put(message)
+        event_queues['state_machine'].put(message)
 
-    yield outgoing_message_queue
+    yield event_queues['communicator']
 
     proc.kill()
 
 @pytest.fixture(name='outgoing_message_queue1')
 def election_start_after_timeout_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = None
-    log_writer_message_queue = None
-    snapshot_writer_message_queue = None
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': None,
+       'snapshot_writer': None,
+
+    }
     startup_state = None
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
@@ -357,27 +327,25 @@ def election_start_after_timeout_setup():
 
     time.sleep(1)
 
-    yield outgoing_message_queue
+    yield event_queues['communicator']
 
     proc.kill()
 
 @pytest.fixture(name='outgoing_message_queue3')
 def election_restart_without_majority_vote_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = None
-    log_writer_message_queue = None
-    snapshot_writer_message_queue = None
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': None,
+       'snapshot_writer': None,
+
+    }
     startup_state = None
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
@@ -385,60 +353,54 @@ def election_restart_without_majority_vote_setup():
 
     # wait for election to begin and
     # then grant votes
-    outgoing_message_queue.get(timeout=1)
+    event_queues['communicator'].get(timeout=1)
     for i in range(2, 3):
         message = RequestVoteResponse(
             vote_granted=True,
             term=1
         )
 
-        incoming_message_queue.put(message)
+        event_queues['state_machine'].put(message)
 
-    yield outgoing_message_queue
+    yield event_queues['communicator']
 
     proc.kill()
 
 @pytest.fixture(name='outgoing_message_queue2')
 def election_victory_with_majority_vote_setup():
-    incoming_message_queue = mp.Queue()
-    outgoing_message_queue = mp.Queue()
-    replication_message_queue = None
-    log_writer_message_queue = None
-    snapshot_writer_message_queue = None
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': None,
+       'snapshot_writer': None,
+
+    }
     startup_state = None
 
     proc = mp.Process(
             target=start_state_machine,
             args=(
-                incoming_message_queue,
-                outgoing_message_queue,
-                replication_message_queue,
-                log_writer_message_queue,
-                snapshot_writer_message_queue,
+                event_queues,
                 startup_state
             )
     )
     proc.start()
     # wait for election to begin and
     # then grant votes
-    outgoing_message_queue.get(timeout=1)
+    event_queues['communicator'].get(timeout=1)
     for i in range(2, 5):
         message = RequestVoteResponse(
             vote_granted=True,
             term=1
         )
-        incoming_message_queue.put(message)
+        event_queues['state_machine'].put(message)
 
-    yield outgoing_message_queue
+    yield event_queues['communicator']
 
     proc.kill()
 
 def start_state_machine(
-        incoming_message_queue,
-        outgoing_message_queue,
-        replication_message_queue,
-        log_writer_message_queue,
-        snapshot_writer_message_queue,
+        event_queues,
         startup_state
         ):
     state_machine = StateMachine(
@@ -447,11 +409,7 @@ def start_state_machine(
             startup_state=startup_state,
             initial_term=0,
             election_timeout=random.randint(150, 300),
-            incoming_message_queue=incoming_message_queue,
-            outgoing_message_queue=outgoing_message_queue,
-            replication_message_queue=replication_message_queue,
-            log_writer_message_queue=log_writer_message_queue,
-            snapshot_writer_message_queue=snapshot_writer_message_queue
+            event_queues=event_queues
             )
     state_machine.run()
 

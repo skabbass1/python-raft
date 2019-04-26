@@ -2,6 +2,8 @@ Leader  Election
 1) Handle RequestVote RPC call
 2) Randomize Election Timeout before start of each election
 3) Send periodic heartbeats from leader
+4) Initilaize commit indexes to 0
+5) Refactor to event based naming structs
 
 
 

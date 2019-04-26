@@ -21,27 +21,33 @@ class StateMachine:
         startup_state,
         initial_term,
         election_timeout,
-        incoming_message_queue,
-        outgoing_message_queue,
-        replication_message_queue,
-        log_writer_message_queue,
-        snapshot_writer_message_queue
+        event_queues,
     ):
 
         self._node_config = node_config
         self._term = initial_term
         self._peer_node_configs = peer_node_configs
         self._election_timeout = election_timeout
-        self._incoming_message_queue = incoming_message_queue
-        self._outgoing_message_queue = outgoing_message_queue
-        self._replication_message_queue = replication_message_queue
-        self._log_writer_message_queue = log_writer_message_queue
-        self._snapshot_writer_message_queue = snapshot_writer_message_queue
+        self._event_queues = event_queues
 
         self._state = startup_state or 'follower'
         self._votes_received = 0
         self._start_time = None
         self._commit_index = -1
+
+        # replication related
+
+        # TODO rename to follower
+        self._peer_node_state = {
+                name:{
+                    'next_id': None,
+                    'node_state': None,
+                    'time_since_request': None
+               } for name, _ in peer_node_configs
+        }
+
+        self._replication_events = {}
+
 
         #TODO  boostrap log and keystore from disk
         self._log = []
@@ -49,26 +55,30 @@ class StateMachine:
 
     def run(self):
         self._start_time = time.time()
+        event_queue = self._event_queues['state_machine']
         while True:
             try:
-                message = self._incoming_message_queue.get_nowait()
-                if message.__class__ == RequestVoteResponse:
-                    self._handle_request_for_vote_response(message)
+                event = event_queue.get_nowait()
+                if event.__class__ == RequestVoteResponse:
+                    self._handle_request_for_vote_response(event)
 
-                elif message.__class__ == AppendEntries:
-                    self._handle_append_entries(message)
+                elif event.__class__ == AppendEntries:
+                    self._handle_append_entries(event)
 
-                elif message.__class__ == ClientRequest:
-                    self._handle_client_request(message)
+                elif event.__class__ == ClientRequest:
+                    self._handle_client_request(event)
 
-                elif message.__class__ == MajorityReplicated:
-                    self._handle_majority_replicated(message)
+                elif event.__class__ == MajorityReplicated:
+                    self._handle_majority_replicated(event)
 
-                elif message.__class__ == SnapshotRequest:
-                    self._handle_snapshot_request(message)
+                elif event.__class__ == SnapshotRequest:
+                    self._handle_snapshot_request(event)
+
+                elif event.__class__ == LocalStateSnapshotRequestForTesting:
+                    self._handle_local_state_snapshot_request_for_testing(event)
 
                 else:
-                    raise RuntimeError(f'Unandled message type {message.__class__}')
+                    raise RuntimeError(f'Unandled event type {event.__class__}')
             except queue.Empty:
                 elapsed_time = (time.time() - self._start_time) * 1000
                 if self._state != 'leader' and  elapsed_time > self._election_timeout:
@@ -89,7 +99,7 @@ class StateMachine:
             prev_log_index=self._log[-1].log_index if self._log else None,
             prev_log_term=self._log[-1].term if self._log else None
         )
-        self._outgoing_message_queue.put_nowait(message)
+        self._event_queues['communicator'].put_nowait(message)
 
     def _handle_append_entries(self, message):
         if message.term  >= self._term:
@@ -117,7 +127,7 @@ class StateMachine:
                 data=message.data
         )
        self._log.append(log_entry)
-       self._log_writer_message_queue.put_nowait(log_entry)
+       self._event_queues['log_writer'].put_nowait(log_entry)
 
        prev_log_index = log_entry.log_index -1
        if prev_log_index < 0:
@@ -134,7 +144,6 @@ class StateMachine:
             leader_commit=self._commit_index,
             entries=[log_entry]
         )
-       self._replication_message_queue.put_nowait(append_entries)
 
     def _handle_majority_replicated(self, message):
         # TODO handle different terms?
@@ -145,14 +154,23 @@ class StateMachine:
                      self._commit_index = entry.log_index
 
     def _handle_snapshot_request(self, message):
-        self._snapshot_writer_message_queue.put_nowait(
+        self._event_queues['snapshot_writer'].put_nowait(
             Snapshot(commit_index=self._commit_index, data=self._key_store)
         )
+
+    def _handle_local_state_snapshot_request_for_testing(self, message):
+            pass
 
     def _transition_to_leader_state(self):
         self._state = 'leader'
         self._votes_recived = 0
         self._send_heartbeat()
+        self._initialize_next_index()
+
+
+    def _initialize_next_index(self):
+        for node_name, _ in self._peer_node_configs:
+            self._peer_node_state[node_name] = len(self._log)
 
     def _send_heartbeat(self):
         prev_log_index = len(self._log) - 1
@@ -164,7 +182,7 @@ class StateMachine:
             leader_commit=self._commit_index,
             entries=[]
         )
-        self._outgoing_message_queue.put_nowait(message)
+        self._event_queues['communicator'].put_nowait(message)
 
     def _commit_log_entry(self, log_entry):
         self._apply_command(log_entry[2], log_entry[3])
