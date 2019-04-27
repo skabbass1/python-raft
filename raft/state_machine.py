@@ -1,6 +1,8 @@
 import queue
 import sys
 import time
+import uuid
+from collections import defaultdict
 
 from raft.structures.messages import (
     AppendEntries,
@@ -48,7 +50,8 @@ class StateMachine:
                } for name, _ in peer_node_configs
         }
 
-        self._replication_events = {}
+        # TODO rename to a more appropriate name
+        self._client_requests = defaultdict(int)
 
 
         #TODO  boostrap log and keystore from disk
@@ -138,14 +141,25 @@ class StateMachine:
        else:
             prev_log_term = self._log[prev_log_index].term
 
-       append_entries = AppendEntries(
-            term=self._term,
-            leader_id=self._node_config.name,
-            prev_log_index=prev_log_index,
-            prev_log_term=prev_log_term,
-            leader_commit=self._commit_index,
-            entries=[log_entry]
-        )
+       for node_name, _ in  self._peer_node_configs:
+           # TODO Check if node is in good state. No need
+           # to keep sending new  messages to a dead node. Start sending again
+           # once hearbeat succeeds. Although a single failed append entries will
+           # keep looping
+           append_entries = AppendEntries(
+               event_id=str(uuid.uuid4()),
+               parent_event_id=message.event_id,
+               destination_server=node_name,
+               term=self._term,
+               leader_id=self._node_config.name,
+               prev_log_index=prev_log_index,
+               prev_log_term=prev_log_term,
+               leader_commit=self._commit_index,
+               entries=[log_entry]
+           )
+           self._event_queues['communicator'].put_nowait(append_entries)
+           self._client_requests[message.event_id]
+
 
     def _handle_majority_replicated(self, message):
         # TODO handle different terms?
@@ -165,7 +179,8 @@ class StateMachine:
             'peer_node_state': self._peer_node_state,
             'state': self._state,
             'term': self._term,
-            'commit_index': self._commit_index
+            'commit_index': self._commit_index,
+            'client_requests': self._client_requests
            }
         ))
 

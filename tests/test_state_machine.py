@@ -3,6 +3,7 @@ import multiprocessing as mp
 import random
 import pickle
 import pathlib
+import uuid
 
 import pytest
 
@@ -76,6 +77,61 @@ def test_entries_get_committed_after_unordered_replication_success(commit_unorde
         contents = pickle.load(f)
 
     assert contents == Snapshot(commit_index=2, data={'x': 1, 'y': 15})
+
+def test_client_requests_get_tracked_until_replication_success(tracked_client_requests):
+    testing_queue, event_id1, event_id2 = tracked_client_requests
+    message = testing_queue.get_nowait()
+    client_requests = message.state['client_requests']
+    assert client_requests == {
+        event_id1: 0,
+        event_id2: 0
+    }
+
+
+@pytest.fixture(name='tracked_client_requests')
+def test_client_requests_get_tracked_until_replication_success_setup():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue(),
+       'testing': mp.Queue()
+
+    }
+    startup_state = "leader"
+
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(
+                event_queues,
+                startup_state
+            )
+    )
+    proc.start()
+
+    event_id1 = str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=event_id1,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    event_id2 = str(uuid.uuid4())
+    message2 = ClientRequest(
+        event_id=event_id2,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'y', 'value': 12}
+    )
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
+    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+    yield event_queues['testing'], event_id1, event_id2
+
+    proc.kill()
+
 
 @pytest.fixture(name='commit')
 def test_entries_get_committed_after_replication_success_setup():

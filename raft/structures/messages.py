@@ -2,9 +2,25 @@ import json
 import sys
 from collections import namedtuple
 
+BaseEvent = namedtuple('BaseEvent', ('event_id', 'parent_event_id'))
+
+EventRouting = namedtuple('EventRouting', ('destination_server'))
+
+ClientRequest = namedtuple(
+    'ClientRequest',
+     BaseEvent._fields  + ('command', 'data')
+)
+
 AppendEntries = namedtuple(
     'AppendEntries',
-    ['term', 'leader_id', 'prev_log_index', 'prev_log_term', 'entries', 'leader_commit']
+    BaseEvent._fields + EventRouting._fields + (
+        'term',
+        'leader_id',
+        'prev_log_index',
+        'prev_log_term',
+        'entries',
+        'leader_commit'
+   )
 )
 
 RequestVote = namedtuple(
@@ -17,10 +33,6 @@ RequestVoteResponse = namedtuple(
     ['term', 'vote_granted']
 )
 
-ClientRequest = namedtuple(
-        'ClientRequest',
-        ['command', 'data']
-)
 
 MajorityReplicated = namedtuple(
          'MajorityReplicated',
