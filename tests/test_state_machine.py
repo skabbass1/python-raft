@@ -18,6 +18,7 @@ from raft.structures.messages import (
     MajorityReplicated,
     SnapshotRequest,
     Snapshot,
+    LocalStateSnapshotRequestForTesting,
 )
 from raft.structures.log_entry import LogEntry
 
@@ -32,8 +33,9 @@ def test_election_start_after_election_timeout(outgoing_message_queue1):
 
 def test_election_victory_with_majority_vote(outgoing_message_queue2):
     message = outgoing_message_queue2.get(timeout=1)
-    assert message.__class__ == AppendEntries
-    assert message.term == 1
+    assert message.state['state'] == 'leader'
+    assert message.state['peer_node_state'] == {'peer1': 0, 'peer2': 0, 'peer3': 0, 'peer4': 0, 'peer5': 0}
+
 
 def test_election_restart_without_majority_vote(outgoing_message_queue3):
     message1 = outgoing_message_queue3.get(timeout=1)
@@ -373,6 +375,7 @@ def election_victory_with_majority_vote_setup():
        'communicator': mp.Queue(),
        'log_writer': None,
        'snapshot_writer': None,
+       'testing': mp.Queue(),
 
     }
     startup_state = None
@@ -395,7 +398,9 @@ def election_victory_with_majority_vote_setup():
         )
         event_queues['state_machine'].put(message)
 
-    yield event_queues['communicator']
+    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+
+    yield event_queues['testing']
 
     proc.kill()
 

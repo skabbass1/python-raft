@@ -10,6 +10,8 @@ from raft.structures.messages import (
     MajorityReplicated,
     Snapshot,
     SnapshotRequest,
+    LocalStateSnapshotRequestForTesting,
+    LocalStateSnapshotForTesting,
 )
 from raft.structures.log_entry import LogEntry
 
@@ -159,7 +161,14 @@ class StateMachine:
         )
 
     def _handle_local_state_snapshot_request_for_testing(self, message):
-            pass
+        self._event_queues['testing'].put_nowait( LocalStateSnapshotForTesting(state={
+            'peer_node_state': self._peer_node_state,
+            'state': self._state,
+            'term': self._term,
+            'commit_index': self._commit_index
+           }
+        ))
+
 
     def _transition_to_leader_state(self):
         self._state = 'leader'
