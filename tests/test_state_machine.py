@@ -16,6 +16,7 @@ from raft.structures.messages import (
     RequestVote,
     RequestVoteResponse,
     ClientRequest,
+    AppendEntriesResponse,
     MajorityReplicated,
     SnapshotRequest,
     Snapshot,
@@ -87,6 +88,65 @@ def test_client_requests_get_tracked_until_replication_success(tracked_client_re
         event_id2: 0
     }
 
+def test_replicated_servers_count_gets_updated_on_client_requests(replicated_server_counts):
+   testing_queue, client_request_event_id = replicated_server_counts
+   event = testing_queue.get_nowait()
+   assert event.state['client_requests'][client_request_event_id] == {'peer1'}
+
+@pytest.fixture(name='replicated_server_counts')
+def test_replicated_servers_count_gets_updated_on_client_requests_setup():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue(),
+       'testing': mp.Queue()
+    }
+    startup_state = "leader"
+
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(
+                event_queues,
+                startup_state
+            )
+    )
+    proc.start()
+
+    event_id1 = str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=event_id1,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    event_id2 = str(uuid.uuid4())
+    message2 = ClientRequest(
+        event_id=event_id2,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'y', 'value': 12}
+    )
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
+
+    event_queues['state_machine'].put(
+        AppendEntriesResponse(
+            event_id=str(uuid.uuid4()),
+            parent_event_id=event_id1,
+            source_server='peer1',
+            destination_server='state_machine1',
+            term=0,
+            success=True
+        )
+    )
+
+    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+    yield event_queues['testing'], event_id1
+
+    proc.kill()
 
 @pytest.fixture(name='tracked_client_requests')
 def test_client_requests_get_tracked_until_replication_success_setup():

@@ -4,7 +4,7 @@ from collections import namedtuple
 
 BaseEvent = namedtuple('BaseEvent', ('event_id', 'parent_event_id'))
 
-EventRouting = namedtuple('EventRouting', ('destination_server'))
+EventRouting = namedtuple('EventRouting', ('source_server', 'destination_server'))
 
 ClientRequest = namedtuple(
     'ClientRequest',
@@ -19,8 +19,16 @@ AppendEntries = namedtuple(
         'prev_log_index',
         'prev_log_term',
         'entries',
-        'leader_commit'
+        'leader_commit',
    )
+)
+
+AppendEntriesResponse = namedtuple(
+    'AppendEntriesResponse',
+    BaseEvent._fields + EventRouting._fields + (
+        'term',
+        'success',
+    )
 )
 
 RequestVote = namedtuple(

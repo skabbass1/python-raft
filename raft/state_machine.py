@@ -9,7 +9,7 @@ from raft.structures.messages import (
     RequestVote,
     RequestVoteResponse,
     ClientRequest,
-    MajorityReplicated,
+    AppendEntriesResponse,
     Snapshot,
     SnapshotRequest,
     LocalStateSnapshotRequestForTesting,
@@ -51,7 +51,7 @@ class StateMachine:
         }
 
         # TODO rename to a more appropriate name
-        self._client_requests = defaultdict(int)
+        self._client_requests = defaultdict(set)
 
 
         #TODO  boostrap log and keystore from disk
@@ -70,11 +70,11 @@ class StateMachine:
                 elif event.__class__ == AppendEntries:
                     self._handle_append_entries(event)
 
+                elif event.__class__ == AppendEntriesResponse:
+                    self._handle_append_entries_response(event)
+
                 elif event.__class__ == ClientRequest:
                     self._handle_client_request(event)
-
-                elif event.__class__ == MajorityReplicated:
-                    self._handle_majority_replicated(event)
 
                 elif event.__class__ == SnapshotRequest:
                     self._handle_snapshot_request(event)
@@ -149,6 +149,7 @@ class StateMachine:
            append_entries = AppendEntries(
                event_id=str(uuid.uuid4()),
                parent_event_id=message.event_id,
+               source_server=self._node_config.name,
                destination_server=node_name,
                term=self._term,
                leader_id=self._node_config.name,
@@ -160,6 +161,19 @@ class StateMachine:
            self._event_queues['communicator'].put_nowait(append_entries)
            self._client_requests[message.event_id]
 
+
+    def _handle_append_entries_response(self, event):
+        empty = object()
+        nodes = self._client_requests.get(event.parent_event_id, empty)
+        if nodes is not empty:
+            if event.success:
+                nodes.add(event.source_server)
+                if len(nodes) > len(self._peer_node_configs) - len(nodes):
+                    # TODO resposnd to client
+                    pass
+            else:
+                # TODO handle append entries failure on node
+                pass
 
     def _handle_majority_replicated(self, message):
         # TODO handle different terms?
