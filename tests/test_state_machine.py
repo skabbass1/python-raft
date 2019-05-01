@@ -93,6 +93,71 @@ def test_replicated_servers_count_gets_updated_on_client_requests(replicated_ser
    event = testing_queue.get_nowait()
    assert event.state['client_requests'][client_request_event_id] == {'peer1'}
 
+def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success(client_response_submitted):
+   testing_queue, client_queue,  client_request_event_id = client_response_submitted
+   state = testing_queue.get_nowait()
+   response = client_queue.get_nowait()
+
+   assert client_request_event_id not in state.state['client_requests']
+   assert response.parent_event_id == client_request_event_id
+
+@pytest.fixture(name='client_response_submitted')
+def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success_setup():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue(),
+       'client': mp.Queue(),
+       'testing': mp.Queue()
+    }
+    startup_state = "leader"
+
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(
+                event_queues,
+                startup_state
+            )
+    )
+    proc.start()
+
+    event_id1 = str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=event_id1,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    event_id2 = str(uuid.uuid4())
+    message2 = ClientRequest(
+        event_id=event_id2,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'y', 'value': 12}
+    )
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(message2)
+
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues['state_machine'].put(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=event_id1,
+                source_server=peer,
+                destination_server='state_machine1',
+                term=0,
+                success=True
+            )
+        )
+
+    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+    yield event_queues['testing'], event_queues['client'],  event_id1
+
+    proc.kill()
+
 @pytest.fixture(name='replicated_server_counts')
 def test_replicated_servers_count_gets_updated_on_client_requests_setup():
     event_queues = {

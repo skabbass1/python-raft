@@ -9,6 +9,7 @@ from raft.structures.messages import (
     RequestVote,
     RequestVoteResponse,
     ClientRequest,
+    ClientRequestResponse,
     AppendEntriesResponse,
     Snapshot,
     SnapshotRequest,
@@ -169,8 +170,17 @@ class StateMachine:
             if event.success:
                 nodes.add(event.source_server)
                 if len(nodes) > len(self._peer_node_configs) - len(nodes):
-                    # TODO resposnd to client
-                    pass
+                    # TODO apply to state machine
+                    # TODO update nextIndex for peer node
+                    # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
+                    self._event_queues['client'].put_nowait(
+                        ClientRequestResponse(
+                            event_id=str(uuid.uuid4()),
+                            parent_event_id=event.parent_event_id,
+                            success=True
+                        )
+                    )
+                    del self._client_requests[event.parent_event_id]
             else:
                 # TODO handle append entries failure on node
                 pass

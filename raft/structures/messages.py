@@ -11,6 +11,11 @@ ClientRequest = namedtuple(
      BaseEvent._fields  + ('command', 'data')
 )
 
+ClientRequestResponse = namedtuple(
+    'ClientRequestResponse',
+     BaseEvent._fields  + ('success',)
+)
+
 AppendEntries = namedtuple(
     'AppendEntries',
     BaseEvent._fields + EventRouting._fields + (
