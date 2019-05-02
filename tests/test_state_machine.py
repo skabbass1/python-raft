@@ -84,22 +84,27 @@ def test_client_requests_get_tracked_until_replication_success(tracked_client_re
     message = testing_queue.get_nowait()
     client_requests = message.state['client_requests']
     assert client_requests == {
-        event_id1: 0,
-        event_id2: 0
+        event_id1: {'replicated_on_peers': set(), 'log_index_to_apply': 0},
+        event_id2: {'replicated_on_peers': set(), 'log_index_to_apply': 1}
     }
 
 def test_replicated_servers_count_gets_updated_on_client_requests(replicated_server_counts):
    testing_queue, client_request_event_id = replicated_server_counts
    event = testing_queue.get_nowait()
-   assert event.state['client_requests'][client_request_event_id] == {'peer1'}
+   assert event.state['client_requests'][client_request_event_id]['replicated_on_peers'] == {'peer1'}
 
 def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success(client_response_submitted):
    testing_queue, client_queue,  client_request_event_id = client_response_submitted
    state = testing_queue.get_nowait()
    response = client_queue.get_nowait()
-
    assert client_request_event_id not in state.state['client_requests']
    assert response.parent_event_id == client_request_event_id
+
+def test_log_entry_gets_applied_to_state_machine_upon_replication_success(client_response_submitted):
+   testing_queue, client_queue,  client_request_event_id = client_response_submitted
+   state = testing_queue.get_nowait()
+   assert  state.state['key_store'] == {'x': 176}
+   assert  state.state['commit_index'] == 0
 
 @pytest.fixture(name='client_response_submitted')
 def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success_setup():
@@ -127,7 +132,7 @@ def test_client_response_get_submitted_and_client_request_gets_untracked_upon_re
         event_id=event_id1,
         parent_event_id=None,
         command='_set',
-        data={'key': 'x', 'value': 1}
+        data={'key': 'x', 'value': 176}
     )
     event_id2 = str(uuid.uuid4())
     message2 = ClientRequest(

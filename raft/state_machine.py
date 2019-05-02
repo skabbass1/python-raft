@@ -52,7 +52,7 @@ class StateMachine:
         }
 
         # TODO rename to a more appropriate name
-        self._client_requests = defaultdict(set)
+        self._client_requests = {}
 
 
         #TODO  boostrap log and keystore from disk
@@ -160,7 +160,10 @@ class StateMachine:
                entries=[log_entry]
            )
            self._event_queues['communicator'].put_nowait(append_entries)
-           self._client_requests[message.event_id]
+           self._client_requests[message.event_id] = {
+               'replicated_on_peers': set(),
+               'log_index_to_apply': log_entry.log_index
+           }
 
 
     def _handle_append_entries_response(self, event):
@@ -168,11 +171,11 @@ class StateMachine:
         nodes = self._client_requests.get(event.parent_event_id, empty)
         if nodes is not empty:
             if event.success:
-                nodes.add(event.source_server)
-                if len(nodes) > len(self._peer_node_configs) - len(nodes):
-                    # TODO apply to state machine
+                nodes['replicated_on_peers'].add(event.source_server)
+                if len(nodes['replicated_on_peers']) > len(self._peer_node_configs) - len(nodes['replicated_on_peers']):
                     # TODO update nextIndex for peer node
                     # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
+                    self._apply_log_index(nodes['log_index_to_apply'])
                     self._event_queues['client'].put_nowait(
                         ClientRequestResponse(
                             event_id=str(uuid.uuid4()),
@@ -185,13 +188,12 @@ class StateMachine:
                 # TODO handle append entries failure on node
                 pass
 
-    def _handle_majority_replicated(self, message):
+    def _apply_log_index(self, log_index):
         # TODO handle different terms?
-        for entry in message.entries:
-            if entry.log_index > self._commit_index:
-                for index in range(self._commit_index + 1, entry.log_index + 1):
-                     self._commit_log_entry(self._log[index])
-                     self._commit_index = entry.log_index
+        if log_index > self._commit_index:
+            for index in range(self._commit_index + 1, log_index + 1):
+                 self._commit_log_entry(self._log[index])
+                 self._commit_index = log_index
 
     def _handle_snapshot_request(self, message):
         self._event_queues['snapshot_writer'].put_nowait(
@@ -204,7 +206,8 @@ class StateMachine:
             'state': self._state,
             'term': self._term,
             'commit_index': self._commit_index,
-            'client_requests': self._client_requests
+            'client_requests': self._client_requests,
+            'key_store': self._key_store
            }
         ))
 
