@@ -45,7 +45,8 @@ class StateMachine:
         # TODO rename to follower
         self._peer_node_state = {
                 name:{
-                    'next_id': None,
+                    'next_index': 0,
+                    'match_index': 0,
                     'node_state': None,
                     'time_since_request': None
                } for name, _ in peer_node_configs
@@ -172,6 +173,15 @@ class StateMachine:
         if nodes is not empty:
             if event.success:
                 nodes['replicated_on_peers'].add(event.source_server)
+                next_index = self._peer_node_state[event.source_server]['next_index']
+                match_index  = self._peer_node_state[event.source_server]['match_index']
+
+                new_next_index = nodes['log_index_to_apply'] + 1
+                if new_next_index > next_index:
+                    self._peer_node_state[event.source_server]['next_index'] = new_next_index
+                if nodes['log_index_to_apply'] > match_index:
+                    self._peer_node_state[event.source_server]['match_index'] = nodes['log_index_to_apply']
+
                 if len(nodes['replicated_on_peers']) > len(self._peer_node_configs) - len(nodes['replicated_on_peers']):
                     # TODO update nextIndex for peer node
                     # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
@@ -221,7 +231,8 @@ class StateMachine:
 
     def _initialize_next_index(self):
         for node_name, _ in self._peer_node_configs:
-            self._peer_node_state[node_name] = len(self._log)
+            self._peer_node_state[node_name]['next_index'] = len(self._log)
+            self._peer_node_state[node_name]['match_index'] = 0
 
     def _send_heartbeat(self):
         prev_log_index = len(self._log) - 1
