@@ -11,6 +11,7 @@ from raft.state_machine import StateMachine
 from raft.log_writer import LogWriter
 from raft.snapshot_writer import SnapshotWriter
 from raft.structures.node_config import NodeConfig
+from raft.structures.log_entry import LogEntry
 from raft.structures.messages import (
     AppendEntries,
     RequestVote,
@@ -135,6 +136,135 @@ def test_match_index_and_next_index_get_updated_upon_append_entries_success(matc
 
    assert peer4['next_index'] == 0
    assert peer4['match_index'] == 0
+
+def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request(next_index_to_last):
+    communicator_queue = next_index_to_last
+    append_entries =[communicator_queue.get_nowait() for _ in range(5)]
+    peer1 = list(filter(lambda x: x.destination_server == 'peer1', append_entries))[0].entries
+    peer2 = list(filter(lambda x: x.destination_server == 'peer2', append_entries))[0].entries
+    peer3 = list(filter(lambda x: x.destination_server == 'peer3', append_entries))[0].entries
+    peer4 = list(filter(lambda x: x.destination_server == 'peer4', append_entries))[0].entries
+    peer5 = list(filter(lambda x: x.destination_server == 'peer5', append_entries))[0].entries
+
+    assert peer1 == [LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})]
+    assert peer2 == [LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})]
+    assert peer3 == [LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})]
+    assert peer4 == [
+        LogEntry(log_index=2, term=0, command='_set', data={'key': 'y', 'value': 14}),
+        LogEntry(log_index=3, term=0, command='_set', data={'key': 'a', 'value': 15}),
+        LogEntry(log_index=4, term=0, command='_set', data={'key': 'b', 'value': 18}),
+        LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})
+    ]
+    assert peer5 == [
+        LogEntry(log_index=4, term=0, command='_set', data={'key': 'b', 'value': 18}),
+        LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})
+    ]
+
+@pytest.fixture(name='next_index_to_last')
+def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request_setup():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue(),
+       'client': mp.Queue(),
+       'testing': mp.Queue()
+    }
+    startup_state = "leader"
+    log = [
+        LogEntry(
+            log_index=1,
+            term=0,
+            command='_set',
+            data={'key': 'x', 'value': 12}
+        ),
+        LogEntry(
+            log_index=2,
+            term=0,
+            command='_set',
+            data={'key': 'y', 'value': 14}
+        ),
+        LogEntry(
+            log_index=3,
+            term=0,
+            command='_set',
+            data={'key': 'a', 'value': 15}
+        ),
+        LogEntry(
+            log_index=4,
+            term=0,
+            command='_set',
+            data={'key': 'b', 'value': 18}
+        ),
+    ]
+
+    key_store = {
+        'x': 12,
+        'y': 14,
+    }
+
+    commit_index = 2
+
+    peer_node_state = {
+        'peer1': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer2': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer3': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer4': {
+            'next_index': 2,
+            'match_index': 1,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer5': {
+            'next_index': 4,
+            'match_index': 3,
+            'node_state': None,
+            'time_since_request': None
+        },
+    }
+
+
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                log,
+                key_store,
+                peer_node_state,
+                commit_index
+            )
+    )
+    proc.start()
+
+    event_id1 = str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=event_id1,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'x', 'value': 176}
+    )
+    event_queues['state_machine'].put(message1)
+
+    time.sleep(0.5)
+    yield event_queues['communicator']
+
+    proc.kill()
 
 @pytest.fixture(name='match_index_next_index')
 def test_match_index_and_next_index_get_updated_upon_append_entries_success_setup():
@@ -734,17 +864,25 @@ def election_victory_with_majority_vote_setup():
     proc.kill()
 
 def start_state_machine(
-        event_queues,
-        startup_state
-        ):
+    event_queues,
+    startup_state,
+    log,
+    key_store,
+    peer_node_state,
+    commit_index
+):
     state_machine = StateMachine(
-            node_config=NodeConfig(name='state_machine1', address=('localhost', 5000)),
-            peer_node_configs=peer_node_configs(),
-            startup_state=startup_state,
-            initial_term=0,
-            election_timeout=random.randint(150, 300),
-            event_queues=event_queues
-            )
+        node_config=NodeConfig(name='state_machine1', address=('localhost', 5000)),
+        peer_node_configs=peer_node_configs(),
+        startup_state=startup_state,
+        initial_term=0,
+        election_timeout=random.randint(150, 300),
+        event_queues=event_queues,
+        log=log,
+        key_store=key_store,
+        peer_node_state=peer_node_state,
+        commit_index=commit_index
+    )
     state_machine.run()
 
 # TODO This method is duplicated in tests/test_logwriter.py.

@@ -27,6 +27,11 @@ class StateMachine:
         initial_term,
         election_timeout,
         event_queues,
+        #TODO Improve the initilialization here
+        log=None,
+        key_store=None,
+        peer_node_state=None,
+        commit_index=None
     ):
 
         self._node_config = node_config
@@ -38,12 +43,12 @@ class StateMachine:
         self._state = startup_state or 'follower'
         self._votes_received = 0
         self._start_time = None
-        self._commit_index = -1
+        self._commit_index = commit_index or -1
 
         # replication related
 
         # TODO rename to follower
-        self._peer_node_state = {
+        self._peer_node_state = peer_node_state or {
                 name:{
                     'next_index': 0,
                     'match_index': 0,
@@ -57,8 +62,8 @@ class StateMachine:
 
 
         #TODO  boostrap log and keystore from disk
-        self._log = []
-        self._key_store = {}
+        self._log = log or []
+        self._key_store = key_store or {}
 
     def run(self):
         self._start_time = time.time()
@@ -128,7 +133,7 @@ class StateMachine:
 
     def _handle_client_request(self, message):
        log_entry = LogEntry(
-                log_index=len(self._log),
+                log_index=len(self._log) + 1,
                 term=self._term,
                 command=message.command,
                 data=message.data
@@ -143,11 +148,12 @@ class StateMachine:
        else:
             prev_log_term = self._log[prev_log_index].term
 
-       for node_name, _ in  self._peer_node_configs:
+       for node_name, state  in  self._peer_node_state.items():
            # TODO Check if node is in good state. No need
            # to keep sending new  messages to a dead node. Start sending again
            # once hearbeat succeeds. Although a single failed append entries will
            # keep looping
+           entries_to_send = self._log[state['next_index'] - 1:]
            append_entries = AppendEntries(
                event_id=str(uuid.uuid4()),
                parent_event_id=message.event_id,
@@ -158,7 +164,7 @@ class StateMachine:
                prev_log_index=prev_log_index,
                prev_log_term=prev_log_term,
                leader_commit=self._commit_index,
-               entries=[log_entry]
+               entries=entries_to_send
            )
            self._event_queues['communicator'].put_nowait(append_entries)
            self._client_requests[message.event_id] = {
@@ -183,7 +189,6 @@ class StateMachine:
                     self._peer_node_state[event.source_server]['match_index'] = nodes['log_index_to_apply']
 
                 if len(nodes['replicated_on_peers']) > len(self._peer_node_configs) - len(nodes['replicated_on_peers']):
-                    # TODO update nextIndex for peer node
                     # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
                     self._apply_log_index(nodes['log_index_to_apply'])
                     self._event_queues['client'].put_nowait(
@@ -231,11 +236,11 @@ class StateMachine:
 
     def _initialize_next_index(self):
         for node_name, _ in self._peer_node_configs:
-            self._peer_node_state[node_name]['next_index'] = len(self._log)
+            self._peer_node_state[node_name]['next_index'] = len(self._log) + 1
             self._peer_node_state[node_name]['match_index'] = 0
 
     def _send_heartbeat(self):
-        prev_log_index = len(self._log) - 1
+        prev_log_index = len(self._log)
         message = AppendEntries(
             term=self._term,
             leader_id=self._node_config.name,
