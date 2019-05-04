@@ -160,6 +160,157 @@ def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon
         LogEntry(log_index=5, term=0, command='_set', data={'key': 'x', 'value': 176})
     ]
 
+def test_leader_resends_unsuccessful_append_entries_to_followers(unsuccessful_append_entries):
+    communicator_queue, testing_queue = unsuccessful_append_entries
+    append_entries =[communicator_queue.get_nowait() for _ in range(6)]
+
+    peer1 = list(filter(lambda x: x.destination_server == 'peer1', append_entries))
+    first_attempt = peer1[0]
+    second_attempt = peer1[1]
+    assert first_attempt.prev_log_index == 4
+    assert first_attempt.prev_log_term == 0
+    assert first_attempt.entries == [LogEntry(
+        log_index=5,
+        term=0,
+        command='_set',
+        data={'key': 'x', 'value': 176}
+    )]
+
+    assert second_attempt.prev_log_index == 3
+    assert second_attempt.prev_log_term == 0
+    assert second_attempt.entries == [
+        LogEntry(
+            log_index=4,
+            term=0,
+            command='_set',
+            data={'key': 'b', 'value': 18}
+        ),
+        LogEntry(
+            log_index=5,
+            term=0,
+            command='_set',
+            data={'key': 'x', 'value': 176}
+        )
+    ]
+
+
+@pytest.fixture(name='unsuccessful_append_entries')
+def test_leader_resends_unsuccessful_append_entries_to_followers_setup():
+    event_queues = {
+       'state_machine': mp.Queue(),
+       'communicator': mp.Queue(),
+       'log_writer': mp.Queue(),
+       'snapshot_writer': mp.Queue(),
+       'client': mp.Queue(),
+       'testing': mp.Queue()
+    }
+    startup_state = "leader"
+    log = [
+        LogEntry(
+            log_index=1,
+            term=0,
+            command='_set',
+            data={'key': 'x', 'value': 12}
+        ),
+        LogEntry(
+            log_index=2,
+            term=0,
+            command='_set',
+            data={'key': 'y', 'value': 14}
+        ),
+        LogEntry(
+            log_index=3,
+            term=0,
+            command='_set',
+            data={'key': 'a', 'value': 15}
+        ),
+        LogEntry(
+            log_index=4,
+            term=0,
+            command='_set',
+            data={'key': 'b', 'value': 18}
+        ),
+    ]
+
+    key_store = {
+        'x': 12,
+        'y': 14,
+    }
+
+    commit_index = 2
+
+    peer_node_state = {
+        'peer1': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer2': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer3': {
+            'next_index': 5,
+            'match_index': 4,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer4': {
+            'next_index': 2,
+            'match_index': 1,
+            'node_state': None,
+            'time_since_request': None
+        },
+        'peer5': {
+            'next_index': 4,
+            'match_index': 3,
+            'node_state': None,
+            'time_since_request': None
+        },
+    }
+
+
+    proc = mp.Process(
+            target=start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                log,
+                key_store,
+                peer_node_state,
+                commit_index
+            )
+    )
+    proc.start()
+
+    event_id1 = str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=event_id1,
+        parent_event_id=None,
+        command='_set',
+        data={'key': 'x', 'value': 176}
+    )
+    event_queues['state_machine'].put(message1)
+    event_queues['state_machine'].put(
+        AppendEntriesResponse(
+            event_id=str(uuid.uuid4()),
+            parent_event_id=event_id1,
+            source_server='peer1',
+            destination_server='state_machine1',
+            term=0,
+            success=False
+        )
+    )
+    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+    time.sleep(0.5)
+    yield event_queues['communicator'], event_queues['testing']
+
+    proc.kill()
+
+
 @pytest.fixture(name='next_index_to_last')
 def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request_setup():
     event_queues = {

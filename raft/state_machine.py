@@ -176,6 +176,7 @@ class StateMachine:
     def _handle_append_entries_response(self, event):
         empty = object()
         nodes = self._client_requests.get(event.parent_event_id, empty)
+        # TODO What about append entries reposnses not triggered byt client requestys
         if nodes is not empty:
             if event.success:
                 nodes['replicated_on_peers'].add(event.source_server)
@@ -200,8 +201,21 @@ class StateMachine:
                     )
                     del self._client_requests[event.parent_event_id]
             else:
-                # TODO handle append entries failure on node
-                pass
+                self._peer_node_state[event.source_server]['next_index'] -=1
+                entries_to_send = self._log[self._peer_node_state[event.source_server]['next_index'] - 1:]
+                append_entries = AppendEntries(
+                    event_id=str(uuid.uuid4()),
+                    parent_event_id=event.parent_event_id,
+                    source_server=self._node_config.name,
+                    destination_server=event.source_server,
+                    term=self._term,
+                    leader_id=self._node_config.name,
+                    prev_log_index=entries_to_send[0].log_index - 1,
+                    prev_log_term=entries_to_send[0].term,
+                    leader_commit=self._commit_index,
+                    entries=entries_to_send
+                )
+                self._event_queues['communicator'].put_nowait(append_entries)
 
     def _apply_log_index(self, log_index):
         # TODO handle different terms?
