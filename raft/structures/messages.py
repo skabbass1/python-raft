@@ -38,7 +38,9 @@ AppendEntriesResponse = namedtuple(
 
 RequestVote = namedtuple(
     'RequestVote',
-    ['term', 'candidate_id', 'prev_log_index', 'prev_log_term']
+    BaseEvent._fields + EventRouting._fields + (
+        ('term', 'candidate_id', 'last_log_index', 'last_log_term')
+    )
 )
 
 RequestVoteResponse = namedtuple(

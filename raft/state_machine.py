@@ -1,5 +1,6 @@
 import queue
 import sys
+import random
 import time
 import uuid
 from collections import defaultdict
@@ -28,21 +29,27 @@ class StateMachine:
         election_timeout,
         event_queues,
         #TODO Improve the initilialization here
+        commit_index=None,
         log=None,
         key_store=None,
-        peer_node_state=None,
-        commit_index=None
+        peer_node_state=None
     ):
 
-        self._node_config = node_config
-        self._term = initial_term
-        self._peer_node_configs = peer_node_configs
-        self._election_timeout = election_timeout
         self._event_queues = event_queues
 
+        self._node_config = node_config
+        self._peer_node_configs = peer_node_configs
+
+        self._election_timeout_range = election_timeout
+        self._election_timeout = random.randint(
+                self._election_timeout_range.start,
+                self._election_timeout_range.stop
+                )
+        self._start_time = None
+
+        self._term = initial_term
         self._state = startup_state or 'follower'
         self._votes_received = 0
-        self._start_time = None
         self._commit_index = commit_index or -1
 
         # replication related
@@ -67,7 +74,7 @@ class StateMachine:
 
     def run(self):
         self._start_time = time.time()
-        event_queue = self._event_queues['state_machine']
+        event_queue = self._event_queues.state_machine
         while True:
             try:
                 event = event_queue.get_nowait()
@@ -101,17 +108,27 @@ class StateMachine:
         self._term += 1
         self._state = 'candidate'
         self._votes_received +=1
+        self._election_timeout = random.randint(
+            self._election_timeout_range.start,
+            self._election_timeout_range.stop
+        )
         self._start_time = time.time()
         self._request_for_votes()
 
     def _request_for_votes(self):
-        message = RequestVote(
-            term=self._term,
-            candidate_id=self._node_config.name,
-            prev_log_index=self._log[-1].log_index if self._log else None,
-            prev_log_term=self._log[-1].term if self._log else None
-        )
-        self._event_queues['communicator'].put_nowait(message)
+        # TODO handle network failures with request for vote calls
+        for peer_node in self._peer_node_configs:
+            event = RequestVote(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                source_server=self._node_config.name,
+                destination_server=peer_node.name,
+                term=self._term,
+                candidate_id=self._node_config.name,
+                last_log_index=len(self._log) if self._log else 0,
+                last_log_term=self._log[-1].term if self._log else 0
+            )
+            self._event_queues.dispatcher.put_nowait(event)
 
     def _handle_append_entries(self, message):
         if message.term  >= self._term:
