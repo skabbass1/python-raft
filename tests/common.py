@@ -24,7 +24,7 @@ def start_state_machine(
     peer_node_state
 ):
     state_machine = StateMachine(
-        node_config=NodeConfig(name='state_machine1', address=('localhost', 5000)),
+        node_config=NodeConfig(name=leader_state_machine_name(), address=('localhost', 5000)),
         peer_node_configs=peer_node_configs(),
         startup_state=startup_state,
         initial_term=initial_term,
@@ -59,6 +59,9 @@ def peer_node_configs():
         NodeConfig('peer4',('localhost', 5004)),
         NodeConfig('peer5',('localhost', 5005)),
     ]
+
+def leader_state_machine_name():
+    return 'state_machine1'
 
 def wait_for_log_file():
     path = pathlib.Path('tmp/0_1')

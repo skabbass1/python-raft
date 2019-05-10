@@ -50,7 +50,7 @@ class StateMachine:
         self._term = initial_term
         self._state = startup_state or 'follower'
         self._votes_received = 0
-        self._commit_index = commit_index or -1
+        self._commit_index = commit_index or 0
 
         # replication related
 
@@ -136,16 +136,17 @@ class StateMachine:
             self._term = message.term
 
 
-    def _handle_request_for_vote_response(self, message):
-        # TODO what to do with message['term']
-        if self._state == 'candidate' and message.term == self._term:
-            if message.vote_granted:
+    def _handle_request_for_vote_response(self, event):
+        # TODO what to do with event['term']
+        if self._state == 'candidate' and event.term == self._term:
+            if event.vote_granted:
                 self._votes_received += 1
                 if self._votes_received > len(self._peer_node_configs) - self._votes_received:
                     self._transition_to_leader_state()
                 else:
                     pass
         else:
+            # TODO What do do if no vote?
             pass
 
     def _handle_client_request(self, message):
@@ -247,7 +248,7 @@ class StateMachine:
         )
 
     def _handle_local_state_snapshot_request_for_testing(self, message):
-        self._event_queues['testing'].put_nowait( LocalStateSnapshotForTesting(state={
+        self._event_queues.testing.put_nowait( LocalStateSnapshotForTesting(state={
             'peer_node_state': self._peer_node_state,
             'state': self._state,
             'term': self._term,
@@ -271,16 +272,20 @@ class StateMachine:
             self._peer_node_state[node_name]['match_index'] = 0
 
     def _send_heartbeat(self):
-        prev_log_index = len(self._log)
-        message = AppendEntries(
-            term=self._term,
-            leader_id=self._node_config.name,
-            prev_log_index=prev_log_index,
-            prev_log_term=-1 if prev_log_index < 0 else self._log[prev_log_index].term,
-            leader_commit=self._commit_index,
-            entries=[]
-        )
-        self._event_queues['communicator'].put_nowait(message)
+        for node_name, _ in  self._peer_node_state.items():
+            append_entries = AppendEntries(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                source_server=self._node_config.name,
+                destination_server=node_name,
+                term=self._term,
+                leader_id=self._node_config.name,
+                prev_log_index=self._log[-1].log_index if self._log else 0,
+                prev_log_term=self._log[-1].log_term if self._log else 0,
+                leader_commit=self._commit_index,
+                entries=[]
+            )
+            self._event_queues.dispatcher.put_nowait(append_entries)
 
     def _commit_log_entry(self, log_entry):
         self._apply_command(log_entry[2], log_entry[3])

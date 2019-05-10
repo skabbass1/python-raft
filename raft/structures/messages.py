@@ -8,7 +8,10 @@ EventRouting = namedtuple('EventRouting', ('source_server', 'destination_server'
 
 ClientRequest = namedtuple(
     'ClientRequest',
-     BaseEvent._fields  + ('command', 'data')
+    BaseEvent._fields  + (
+        'command',
+        'data',
+    )
 )
 
 ClientRequestResponse = namedtuple(
@@ -39,15 +42,20 @@ AppendEntriesResponse = namedtuple(
 RequestVote = namedtuple(
     'RequestVote',
     BaseEvent._fields + EventRouting._fields + (
-        ('term', 'candidate_id', 'last_log_index', 'last_log_term')
+        'term',
+        'candidate_id',
+        'last_log_index',
+        'last_log_term',
     )
 )
 
 RequestVoteResponse = namedtuple(
     'RequestVoteResponse',
-    ['term', 'vote_granted']
+    BaseEvent._fields + EventRouting._fields + (
+        'term',
+        'vote_granted',
+    )
 )
-
 
 MajorityReplicated = namedtuple(
          'MajorityReplicated',

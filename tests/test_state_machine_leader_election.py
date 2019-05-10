@@ -22,18 +22,19 @@ from raft.structures.messages import (
 )
 from . import common
 
-def test_correct_request_for_vote_gets_sent_to_all_peers(outgoing_message_queue1):
+def test_correct_request_for_vote_gets_sent_to_all_peers(event_queues1):
+    dispatcher = event_queues1.dispatcher
     peers = common.peer_node_configs()
-    events = [outgoing_message_queue1.get_nowait() for _ in range(1, len(peers) + 1)]
+    events = [dispatcher.get_nowait() for _ in range(1, len(peers) + 1)]
     term_log_index_log_term = [(e.term, e.last_log_index, e.last_log_term) for e in events]
 
     assert {p.name for p in peers} == {e.destination_server for e in events}
     assert term_log_index_log_term == [(1, 0, 0)] * len(peers)
 
-def test_election_victory_with_majority_vote(outgoing_message_queue2):
-    message = outgoing_message_queue2.get(timeout=1)
-    assert message.state['state'] == 'leader'
-    assert message.state['peer_node_state'] == {'peer1': 0, 'peer2': 0, 'peer3': 0, 'peer4': 0, 'peer5': 0}
+def test_election_victory_with_majority_vote(event_queues2):
+    testing_queue = event_queues2.testing
+    event = testing_queue.get(timeout=1)
+    assert event.state['state'] == 'leader'
 
 def test_election_restart_without_majority_vote(outgoing_message_queue3):
     message1 = outgoing_message_queue3.get(timeout=1)
@@ -52,8 +53,8 @@ def test_legitimate_leader_discovery_mid_election(outgoing_message_queue4):
     assert message.__class__ == RequestVote
     assert message.term == 701
 
-@pytest.fixture(name='outgoing_message_queue1')
-def election_start_after_timeout_setup():
+@pytest.fixture(name='event_queues1')
+def test_correct_request_for_vote_gets_sent_to_all_peers_setup():
     event_queues = common.create_event_queues()
     startup_state = None
     initial_term = 0
@@ -80,43 +81,53 @@ def election_start_after_timeout_setup():
 
     time.sleep(1)
 
-    yield event_queues.dispatcher
+    yield event_queues
 
     proc.kill()
 
-@pytest.fixture(name='outgoing_message_queue2')
-def election_victory_with_majority_vote_setup():
-    event_queues = {
-            'state_machine': mp.Queue(),
-            'communicator': mp.Queue(),
-            'log_writer': None,
-            'snapshot_writer': None,
-            'testing': mp.Queue(),
-
-            }
+@pytest.fixture(name='event_queues2')
+def test_election_victory_with_majority_vote_setup():
+    event_queues = common.create_event_queues()
     startup_state = None
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    peer_node_state=None
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
-                startup_state
+                startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                peer_node_state
                 )
             )
     proc.start()
+
     # wait for election to begin and
     # then grant votes
-    event_queues['communicator'].get(timeout=1)
-    for i in range(2, 5):
-        message = RequestVoteResponse(
-                vote_granted=True,
-                term=1
-                )
-        event_queues['state_machine'].put(message)
+    event_queues.dispatcher.get(timeout=1)
+    for peer in ('peer2', 'peer3', 'peer5'):
+        event = RequestVoteResponse(
+            event_id=str(uuid.uuid4()),
+            parent_event_id=None,
+            source_server=peer,
+            destination_server=common.leader_state_machine_name(),
+            vote_granted=True,
+            term=1
+        )
+        event_queues.state_machine.put(event)
 
-    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+    event_queues.state_machine.put(LocalStateSnapshotRequestForTesting())
 
-    yield event_queues['testing']
+    yield event_queues
 
     proc.kill()
 
