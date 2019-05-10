@@ -1,8 +1,5 @@
 import time
 import multiprocessing as mp
-import random
-import pickle
-import pathlib
 import uuid
 
 import pytest
@@ -15,9 +12,6 @@ from raft.structures.messages import (
     RequestVoteResponse,
     ClientRequest,
     AppendEntriesResponse,
-    MajorityReplicated,
-    SnapshotRequest,
-    Snapshot,
     LocalStateSnapshotRequestForTesting,
 )
 from . import common
@@ -53,12 +47,11 @@ def test_election_restart_without_majority_vote(event_queues3):
     assert event2.state['term'] > event1.state['term']
 
 
-def test_legitimate_leader_discovery_mid_election(outgoing_message_queue4):
-    # This is a weak test. Essentially  making sure the next election
-    # begins after the latest leader term
-    message = outgoing_message_queue4.get(timeout=1)
-    assert message.__class__ == RequestVote
-    assert message.term == 701
+def test_legitimate_leader_discovery_mid_election(event_queues4):
+    testing_queue = event_queues4.testing
+    event = testing_queue.get_nowait()
+    assert event.state['state'] == 'follower'
+    assert event.state['term'] == 700
 
 @pytest.fixture(name='event_queues1')
 def test_correct_request_for_vote_gets_sent_to_all_peers_setup():
@@ -86,7 +79,7 @@ def test_correct_request_for_vote_gets_sent_to_all_peers_setup():
             )
     proc.start()
 
-    time.sleep(1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -163,7 +156,6 @@ def test_election_restart_without_majority_vote_setup():
                 )
             )
     proc.start()
-
     # wait for election to begin and
     # then grant votes
     event_queues.dispatcher.get(timeout=1)
@@ -182,47 +174,64 @@ def test_election_restart_without_majority_vote_setup():
 
     proc.kill()
 
-@pytest.fixture(name='outgoing_message_queue4')
-def legitimate_leader_discovery_mid_election_setup():
-    event_queues = {
-            'state_machine': mp.Queue(),
-            'communicator': mp.Queue(),
-            'log_writer': None,
-            'snapshot_writer': None,
-
-            }
+@pytest.fixture(name='event_queues4')
+def test_legitimate_leader_discovery_mid_election_setup():
+    event_queues = common.create_event_queues()
     startup_state = None
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    peer_node_state=None
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
-                startup_state
+                startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                peer_node_state
                 )
             )
     proc.start()
-
     # wait for election to begin and
     # then grant votes
-    event_queues['communicator'].get(timeout=1)
-    for i in range(2, 3):
-        message = RequestVoteResponse(
-                vote_granted=True,
-                term=1
-                )
+    event_queues.dispatcher.get(timeout=1)
+    for peer in ('peer2',):
+        event = RequestVoteResponse(
+            event_id=str(uuid.uuid4()),
+            parent_event_id=None,
+            source_server=peer,
+            destination_server=common.leader_state_machine_name(),
+            vote_granted=True,
+            term=1
+        )
+        event_queues.state_machine.put(event)
 
-        message = AppendEntries(
-                term=700,
-                leader_id=5,
-                prev_log_index=None,
-                prev_log_term=None,
-                leader_commit=None,
-                entries=[]
-                )
+    event = AppendEntries(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        source_server='peer5',
+        destination_server=common.leader_state_machine_name(),
+        term=700,
+        leader_id='peer5',
+        prev_log_index=5,
+        prev_log_term=700,
+        leader_commit=5,
+        entries=[]
+    )
 
-        event_queues['state_machine'].put(message)
+    event_queues.state_machine.put_nowait(event)
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    yield event_queues['communicator']
+    time.sleep(0.5)
+
+    yield event_queues
 
     proc.kill()
 

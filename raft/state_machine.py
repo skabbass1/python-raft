@@ -130,10 +130,10 @@ class StateMachine:
             )
             self._event_queues.dispatcher.put_nowait(event)
 
-    def _handle_append_entries(self, message):
-        if message.term  >= self._term:
+    def _handle_append_entries(self, event):
+        if event.term  >= self._term:
             self._state = 'follower'
-            self._term = message.term
+            self._term = event.term
 
 
     def _handle_request_for_vote_response(self, event):
