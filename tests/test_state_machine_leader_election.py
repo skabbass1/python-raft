@@ -36,15 +36,22 @@ def test_election_victory_with_majority_vote(event_queues2):
     event = testing_queue.get(timeout=1)
     assert event.state['state'] == 'leader'
 
-def test_election_restart_without_majority_vote(outgoing_message_queue3):
-    message1 = outgoing_message_queue3.get(timeout=1)
-    message2 = outgoing_message_queue3.get(timeout=1)
+def test_election_restart_without_majority_vote(event_queues3):
+    state_machine_queue = event_queues3.state_machine
+    testing_queue = event_queues3.testing
 
-    assert message1.__class__ == RequestVote
-    assert message1.term  == 2
+    state_machine_queue.put(LocalStateSnapshotRequestForTesting())
+    event1 = testing_queue.get(timeout=1)
 
-    assert message2.__class__ == RequestVote
-    assert message2.term ==  3
+    time.sleep(0.5)
+
+    state_machine_queue.put(LocalStateSnapshotRequestForTesting())
+    event2 = testing_queue.get(timeout=1)
+
+    assert event1.state['state'] == 'candidate'
+    assert event2.state['state'] == 'candidate'
+    assert event2.state['term'] > event1.state['term']
+
 
 def test_legitimate_leader_discovery_mid_election(outgoing_message_queue4):
     # This is a weak test. Essentially  making sure the next election
@@ -131,38 +138,47 @@ def test_election_victory_with_majority_vote_setup():
 
     proc.kill()
 
-@pytest.fixture(name='outgoing_message_queue3')
-def election_restart_without_majority_vote_setup():
-    event_queues = {
-            'state_machine': mp.Queue(),
-            'communicator': mp.Queue(),
-            'log_writer': None,
-            'snapshot_writer': None,
-
-            }
+@pytest.fixture(name='event_queues3')
+def test_election_restart_without_majority_vote_setup():
+    event_queues = common.create_event_queues()
     startup_state = None
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    peer_node_state=None
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
-                startup_state
+                startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                peer_node_state
                 )
             )
     proc.start()
 
     # wait for election to begin and
     # then grant votes
-    event_queues['communicator'].get(timeout=1)
-    for i in range(2, 3):
-        message = RequestVoteResponse(
-                vote_granted=True,
-                term=1
-                )
+    event_queues.dispatcher.get(timeout=1)
+    for peer in ('peer2',):
+        event = RequestVoteResponse(
+            event_id=str(uuid.uuid4()),
+            parent_event_id=None,
+            source_server=peer,
+            destination_server=common.leader_state_machine_name(),
+            vote_granted=True,
+            term=1
+        )
+        event_queues.state_machine.put(event)
 
-        event_queues['state_machine'].put(message)
-
-    yield event_queues['communicator']
+    yield event_queues
 
     proc.kill()
 
