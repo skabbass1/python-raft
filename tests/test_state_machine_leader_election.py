@@ -8,10 +8,7 @@ from raft.structures.node_config import NodeConfig
 from raft.structures.log_entry import LogEntry
 from raft.structures.messages import (
     AppendEntries,
-    RequestVote,
     RequestVoteResponse,
-    ClientRequest,
-    AppendEntriesResponse,
     LocalStateSnapshotRequestForTesting,
 )
 from . import common
