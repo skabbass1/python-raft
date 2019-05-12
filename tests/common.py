@@ -9,6 +9,7 @@ def create_event_queues():
             state_machine=mp.Queue(),
             dispatcher=mp.Queue(),
             listener=mp.Queue(),
+            client_response=mp.Queue(),
             log_writer=mp.Queue(),
             testing=mp.Queue()
             )

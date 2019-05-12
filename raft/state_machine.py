@@ -162,11 +162,11 @@ class StateMachine:
        self._event_queues.log_writer.put_nowait(log_entry)
 
        prev_log_index = log_entry.log_index -1
-       if prev_log_index < 0:
-           prev_log_index = None
-           prev_log_term = None
+       if prev_log_index == 0:
+           prev_log_index = 0
+           prev_log_term = 0
        else:
-            prev_log_term = self._log[prev_log_index].term
+           prev_log_term = self._log[prev_log_index].term
 
        for node_name, state  in  self._peer_node_state.items():
            # TODO Check if node is in good state. No need
@@ -196,7 +196,7 @@ class StateMachine:
 
     def _handle_append_entries_response(self, event):
         empty = object()
-        nodes = self._append_entries_requests.get(event.parent_event_id, empty)
+        nodes = self._append_entries_requests.get((event.parent_event_id, event.event_trigger), empty)
         # TODO What about append entries reposnses not triggered byt client requestys
         if nodes is not empty:
             if event.success:
@@ -213,14 +213,15 @@ class StateMachine:
                 if len(nodes['replicated_on_peers']) > len(self._peer_node_configs) - len(nodes['replicated_on_peers']):
                     # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
                     self._apply_log_index(nodes['log_index_to_apply'])
-                    self._event_queues['client'].put_nowait(
+                    self._event_queues.client_response.put_nowait(
                         ClientRequestResponse(
                             event_id=str(uuid.uuid4()),
                             parent_event_id=event.parent_event_id,
+                            event_trigger=None,
                             success=True
                         )
                     )
-                    del self._append_entries_requests[event.parent_event_id]
+                    del self._append_entries_requests[(event.parent_event_id, event.event_trigger)]
             else:
                 self._peer_node_state[event.source_server]['next_index'] -=1
                 entries_to_send = self._log[self._peer_node_state[event.source_server]['next_index'] - 1:]
