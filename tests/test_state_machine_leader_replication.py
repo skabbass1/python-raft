@@ -34,18 +34,21 @@ def test_client_response_gets_submitted_and_client_request_gets_untracked_upon_r
    assert (unreplicated_event.event_id, EventTrigger.CLIENT_REQUEST) in state.state['append_entries_requests']
    assert response.parent_event_id == replicated_event.event_id
 
-def test_replicated_servers_count_gets_updated_on_client_requests(replicated_server_counts):
-   testing_queue, client_request_event_id = replicated_server_counts
-   event = testing_queue.get_nowait()
-   assert event.state['client_requests'][client_request_event_id]['replicated_on_peers'] == {'peer1'}
-
+def test_replicated_servers_count_gets_updated_on_client_requests(replication_success):
+    event_queues, _, unreplicated_event = replication_success
+    event = event_queues.testing.get_nowait()
+    append_entries_requests = event.state['append_entries_requests']
+    assert append_entries_requests[(unreplicated_event.event_id, EventTrigger.CLIENT_REQUEST)] =={
+        'replicated_on_peers': {'peer2', 'peer5'},
+        'log_index_to_apply': 2
+    }
 
 def test_log_entry_gets_applied_to_state_machine_upon_replication_success(replication_success):
    # TODO test to ensure that order  does not matter
-   testing_queue, client_queue,  client_request_event_id = replication_success
-   state = testing_queue.get_nowait()
+   event_queues, _, _ = replication_success
+   state = event_queues.testing.get_nowait()
    assert  state.state['key_store'] == {'x': 176}
-   assert  state.state['commit_index'] == 0
+   assert  state.state['commit_index'] == 1
 
 def test_uncomitted_log_entries_preceeding_the_last_replicated_log_entry_get_applied_to_state_machine(preceeding_uncommitted_log_entries):
    testing_queue, client_queue,  client_request_event_id = preceeding_uncommitted_log_entries
@@ -262,62 +265,6 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
     proc.kill()
     snapshot_writer_proc.kill()
 
-
-@pytest.fixture(name='replicated_server_counts')
-def test_replicated_servers_count_gets_updated_on_client_requests_setup():
-    event_queues = {
-       'state_machine': mp.Queue(),
-       'communicator': mp.Queue(),
-       'log_writer': mp.Queue(),
-       'snapshot_writer': mp.Queue(),
-       'testing': mp.Queue()
-    }
-    startup_state = "leader"
-
-    proc = mp.Process(
-            target=start_state_machine,
-            args=(
-                event_queues,
-                startup_state
-            )
-    )
-    proc.start()
-
-    event_id1 = str(uuid.uuid4())
-    message1 = ClientRequest(
-        event_id=event_id1,
-        parent_event_id=None,
-        command='_set',
-        data={'key': 'x', 'value': 1}
-    )
-    event_id2 = str(uuid.uuid4())
-    message2 = ClientRequest(
-        event_id=event_id2,
-        parent_event_id=None,
-        command='_set',
-        data={'key': 'y', 'value': 12}
-    )
-    event_queues['state_machine'].put(message1)
-    event_queues['state_machine'].put(message2)
-
-    event_queues['state_machine'].put(
-        AppendEntriesResponse(
-            event_id=str(uuid.uuid4()),
-            parent_event_id=event_id1,
-            source_server='peer1',
-            destination_server='state_machine1',
-            term=0,
-            success=True
-        )
-    )
-
-    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
-
-    time.sleep(0.5)
-    yield event_queues['testing'], event_id1
-
-    proc.kill()
-
 @pytest.fixture(name='replication_success')
 def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success_setup():
     event_queues = common.create_event_queues()
@@ -349,7 +296,7 @@ def test_client_response_get_submitted_and_client_request_gets_untracked_upon_re
         parent_event_id=None,
         event_trigger=None,
         command='_set',
-        data={'key': 'x', 'value': 1}
+        data={'key': 'x', 'value': 176}
     )
     unreplicated_event = ClientRequest(
         event_id=str(uuid.uuid4()),
@@ -366,6 +313,18 @@ def test_client_response_get_submitted_and_client_request_gets_untracked_upon_re
             AppendEntriesResponse(
                 event_id=str(uuid.uuid4()),
                 parent_event_id=replicated_event.event_id,
+                event_trigger=EventTrigger.CLIENT_REQUEST,
+                source_server=peer,
+                destination_server='state_machine1',
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer2', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=unreplicated_event.event_id,
                 event_trigger=EventTrigger.CLIENT_REQUEST,
                 source_server=peer,
                 destination_server='state_machine1',

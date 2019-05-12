@@ -243,7 +243,7 @@ class StateMachine:
         # TODO handle different terms?
         if log_index > self._commit_index:
             for index in range(self._commit_index + 1, log_index + 1):
-                 self._commit_log_entry(self._log[index])
+                 self._commit_log_entry(self._log[index - 1])
                  self._commit_index = log_index
 
     def _handle_snapshot_request(self, message):
@@ -258,7 +258,8 @@ class StateMachine:
             'term': self._term,
             'commit_index': self._commit_index,
             'append_entries_requests': self._append_entries_requests,
-            'key_store': self._key_store
+            'key_store': self._key_store,
+            'log': self._log
            }
         ))
 
