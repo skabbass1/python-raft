@@ -58,7 +58,7 @@ class StateMachine:
         # TODO rename to follower
         self._peer_node_state = peer_node_state or {
                 name:{
-                    'next_index': 0,
+                    'next_index': 1,
                     'match_index': 0,
                     'node_state': None,
                     'time_since_request': None
