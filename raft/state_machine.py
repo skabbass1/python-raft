@@ -228,6 +228,7 @@ class StateMachine:
                 append_entries = AppendEntries(
                     event_id=str(uuid.uuid4()),
                     parent_event_id=event.parent_event_id,
+                    event_trigger=event.event_trigger,
                     source_server=self._node_config.name,
                     destination_server=event.source_server,
                     term=self._term,
@@ -237,7 +238,7 @@ class StateMachine:
                     leader_commit=self._commit_index,
                     entries=entries_to_send
                 )
-                self._event_queues['communicator'].put_nowait(append_entries)
+                self._event_queues.dispatcher.put_nowait(append_entries)
 
     def _apply_log_index(self, log_index):
         # TODO handle different terms?

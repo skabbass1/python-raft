@@ -79,9 +79,9 @@ def test_match_index_and_next_index_get_updated_upon_append_entries_success(repl
    assert peer4['next_index'] == 2
    assert peer4['match_index'] == 1
 
-def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request(next_index_to_last):
-    communicator_queue = next_index_to_last
-    append_entries =[communicator_queue.get_nowait() for _ in range(5)]
+def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request(log_entries):
+    event_queues = log_entries
+    append_entries =[event_queues.dispatcher.get_nowait() for _ in range(5)]
     peer1 = list(filter(lambda x: x.destination_server == 'peer1', append_entries))[0].entries
     peer2 = list(filter(lambda x: x.destination_server == 'peer2', append_entries))[0].entries
     peer3 = list(filter(lambda x: x.destination_server == 'peer3', append_entries))[0].entries
@@ -103,8 +103,8 @@ def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon
     ]
 
 def test_leader_resends_unsuccessful_append_entries_to_followers(unsuccessful_append_entries):
-    communicator_queue, testing_queue = unsuccessful_append_entries
-    append_entries =[communicator_queue.get_nowait() for _ in range(6)]
+    event_queues = unsuccessful_append_entries
+    append_entries =[event_queues.dispatcher.get_nowait() for _ in range(6)]
 
     peer1 = list(filter(lambda x: x.destination_server == 'peer1', append_entries))
     first_attempt = peer1[0]
@@ -338,51 +338,13 @@ def test_uncomitted_log_entries_preceeding_the_last_replicated_log_entry_get_app
 
     proc.kill()
 
-@pytest.fixture(name='next_index_to_last')
+@pytest.fixture(name='log_entries')
 def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request_setup():
-    event_queues = {
-       'state_machine': mp.Queue(),
-       'communicator': mp.Queue(),
-       'log_writer': mp.Queue(),
-       'snapshot_writer': mp.Queue(),
-       'client': mp.Queue(),
-       'testing': mp.Queue()
-    }
-    startup_state = "leader"
-    log = [
-        LogEntry(
-            log_index=1,
-            term=0,
-            command='_set',
-            data={'key': 'x', 'value': 12}
-        ),
-        LogEntry(
-            log_index=2,
-            term=0,
-            command='_set',
-            data={'key': 'y', 'value': 14}
-        ),
-        LogEntry(
-            log_index=3,
-            term=0,
-            command='_set',
-            data={'key': 'a', 'value': 15}
-        ),
-        LogEntry(
-            log_index=4,
-            term=0,
-            command='_set',
-            data={'key': 'b', 'value': 18}
-        ),
-    ]
-
-    key_store = {
-        'x': 12,
-        'y': 14,
-    }
-
+    event_queues = common.create_event_queues()
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
     commit_index = 2
-
     peer_node_state = {
         'peer1': {
             'next_index': 5,
@@ -416,79 +378,75 @@ def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon
         },
     }
 
+    log = [
+        LogEntry(
+            log_index=1,
+            term=0,
+            command='_set',
+            data={'key': 'x', 'value': 12}
+        ),
+        LogEntry(
+            log_index=2,
+            term=0,
+            command='_set',
+            data={'key': 'y', 'value': 14}
+        ),
+        LogEntry(
+            log_index=3,
+            term=0,
+            command='_set',
+            data={'key': 'a', 'value': 15}
+        ),
+        LogEntry(
+            log_index=4,
+            term=0,
+            command='_set',
+            data={'key': 'b', 'value': 18}
+        ),
+    ]
+    key_store = {
+        'x': 12,
+        'y': 14,
+    }
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
                 startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
                 log,
                 key_store,
-                peer_node_state,
-                commit_index
+                peer_node_state
+                )
             )
-    )
+
     proc.start()
 
-    event_id1 = str(uuid.uuid4())
-    message1 = ClientRequest(
-        event_id=event_id1,
+    event = ClientRequest(
+        event_id=str(uuid.uuid4()),
         parent_event_id=None,
+        event_trigger=None,
         command='_set',
         data={'key': 'x', 'value': 176}
     )
-    event_queues['state_machine'].put(message1)
+    event_queues.state_machine.put(event)
 
     time.sleep(0.5)
-    yield event_queues['communicator']
+
+    yield event_queues
 
     proc.kill()
 
 @pytest.fixture(name='unsuccessful_append_entries')
 def test_leader_resends_unsuccessful_append_entries_to_followers_setup():
-    event_queues = {
-       'state_machine': mp.Queue(),
-       'communicator': mp.Queue(),
-       'log_writer': mp.Queue(),
-       'snapshot_writer': mp.Queue(),
-       'client': mp.Queue(),
-       'testing': mp.Queue()
-    }
-    startup_state = "leader"
-    log = [
-        LogEntry(
-            log_index=1,
-            term=0,
-            command='_set',
-            data={'key': 'x', 'value': 12}
-        ),
-        LogEntry(
-            log_index=2,
-            term=0,
-            command='_set',
-            data={'key': 'y', 'value': 14}
-        ),
-        LogEntry(
-            log_index=3,
-            term=0,
-            command='_set',
-            data={'key': 'a', 'value': 15}
-        ),
-        LogEntry(
-            log_index=4,
-            term=0,
-            command='_set',
-            data={'key': 'b', 'value': 18}
-        ),
-    ]
-
-    key_store = {
-        'x': 12,
-        'y': 14,
-    }
-
+    event_queues = common.create_event_queues()
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
     commit_index = 2
-
     peer_node_state = {
         'peer1': {
             'next_index': 5,
@@ -522,42 +480,77 @@ def test_leader_resends_unsuccessful_append_entries_to_followers_setup():
         },
     }
 
+    log = [
+        LogEntry(
+            log_index=1,
+            term=0,
+            command='_set',
+            data={'key': 'x', 'value': 12}
+        ),
+        LogEntry(
+            log_index=2,
+            term=0,
+            command='_set',
+            data={'key': 'y', 'value': 14}
+        ),
+        LogEntry(
+            log_index=3,
+            term=0,
+            command='_set',
+            data={'key': 'a', 'value': 15}
+        ),
+        LogEntry(
+            log_index=4,
+            term=0,
+            command='_set',
+            data={'key': 'b', 'value': 18}
+        ),
+    ]
+    key_store = {
+        'x': 12,
+        'y': 14,
+    }
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
                 startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
                 log,
                 key_store,
-                peer_node_state,
-                commit_index
+                peer_node_state
+                )
             )
-    )
+
     proc.start()
 
-    event_id1 = str(uuid.uuid4())
-    message1 = ClientRequest(
-        event_id=event_id1,
+    event = ClientRequest(
+        event_id=str(uuid.uuid4()),
         parent_event_id=None,
+        event_trigger=None,
         command='_set',
         data={'key': 'x', 'value': 176}
     )
-    event_queues['state_machine'].put(message1)
-    event_queues['state_machine'].put(
+    event_queues.state_machine.put_nowait(event)
+    event_queues.state_machine.put_nowait(
         AppendEntriesResponse(
             event_id=str(uuid.uuid4()),
-            parent_event_id=event_id1,
+            parent_event_id=event.event_id,
+            event_trigger=EventTrigger.CLIENT_REQUEST,
             source_server='peer1',
             destination_server='state_machine1',
             term=0,
             success=False
         )
     )
-    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
     time.sleep(0.5)
-    yield event_queues['communicator'], event_queues['testing']
+
+    yield event_queues
 
     proc.kill()
-
 
