@@ -121,6 +121,7 @@ class StateMachine:
             event = RequestVote(
                 event_id=str(uuid.uuid4()),
                 parent_event_id=None,
+                event_trigger=None,
                 source_server=self._node_config.name,
                 destination_server=peer_node.name,
                 term=self._term,
@@ -276,6 +277,7 @@ class StateMachine:
             append_entries = AppendEntries(
                 event_id=str(uuid.uuid4()),
                 parent_event_id=None,
+                event_trigger=None,
                 source_server=self._node_config.name,
                 destination_server=node_name,
                 term=self._term,

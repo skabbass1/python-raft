@@ -115,6 +115,7 @@ def test_election_victory_with_majority_vote_setup():
         event = RequestVoteResponse(
             event_id=str(uuid.uuid4()),
             parent_event_id=None,
+            event_trigger=None,
             source_server=peer,
             destination_server=common.leader_state_machine_name(),
             vote_granted=True,
@@ -160,6 +161,7 @@ def test_election_restart_without_majority_vote_setup():
         event = RequestVoteResponse(
             event_id=str(uuid.uuid4()),
             parent_event_id=None,
+            event_trigger=None,
             source_server=peer,
             destination_server=common.leader_state_machine_name(),
             vote_granted=True,
@@ -203,6 +205,7 @@ def test_legitimate_leader_discovery_mid_election_setup():
         event = RequestVoteResponse(
             event_id=str(uuid.uuid4()),
             parent_event_id=None,
+            event_trigger=None,
             source_server=peer,
             destination_server=common.leader_state_machine_name(),
             vote_granted=True,
@@ -213,6 +216,7 @@ def test_legitimate_leader_discovery_mid_election_setup():
     event = AppendEntries(
         event_id=str(uuid.uuid4()),
         parent_event_id=None,
+        event_trigger=None,
         source_server='peer5',
         destination_server=common.leader_state_machine_name(),
         term=700,

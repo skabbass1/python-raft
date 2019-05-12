@@ -2,7 +2,10 @@ import json
 import sys
 from collections import namedtuple
 
-BaseEvent = namedtuple('BaseEvent', ('event_id', 'parent_event_id'))
+BaseEvent = namedtuple(
+    'BaseEvent',
+    ('event_id', 'parent_event_id', 'event_trigger'),
+)
 
 EventRouting = namedtuple('EventRouting', ('source_server', 'destination_server'))
 
