@@ -1,23 +1,27 @@
+import time
+import multiprocessing as mp
+import uuid
 
-def test_entries_get_committed_after_replication_success(commit):
-    with open('tmp/snapshot_1', 'rb') as f:
-        contents = pickle.load(f)
+import pytest
 
-    assert contents == Snapshot(commit_index=1, data={'x': 1, 'y': 12})
+from raft.structures.node_config import NodeConfig
+from raft.structures.log_entry import LogEntry
+from raft.structures.messages import (
+    AppendEntries,
+    ClientRequest,
+    RequestVoteResponse,
+    LocalStateSnapshotRequestForTesting,
+)
+from raft.structures.event_trigger import EventTrigger
+from . import common
 
-def test_entries_get_committed_after_unordered_replication_success(commit_unordered):
-    with open('tmp/snapshot_2', 'rb') as f:
-        contents = pickle.load(f)
-
-    assert contents == Snapshot(commit_index=2, data={'x': 1, 'y': 15})
-
-def test_client_requests_get_tracked_until_replication_success(tracked_client_requests):
-    testing_queue, event_id1, event_id2 = tracked_client_requests
-    message = testing_queue.get_nowait()
-    client_requests = message.state['client_requests']
-    assert client_requests == {
-        event_id1: {'replicated_on_peers': set(), 'log_index_to_apply': 0},
-        event_id2: {'replicated_on_peers': set(), 'log_index_to_apply': 1}
+def test_append_entries_associated_with_client_requests_get_tracked(append_entries_client_requests):
+    event_queues, event_id1, event_id2 = append_entries_client_requests
+    event = event_queues.testing.get_nowait()
+    append_entries_requests = event.state['append_entries_requests']
+    assert append_entries_requests == {
+        (event_id1, EventTrigger.CLIENT_REQUEST): {'replicated_on_peers': set(), 'log_index_to_apply': 1},
+        (event_id2, EventTrigger.CLIENT_REQUEST): {'replicated_on_peers': set(), 'log_index_to_apply': 2}
     }
 
 def test_replicated_servers_count_gets_updated_on_client_requests(replicated_server_counts):
@@ -33,6 +37,7 @@ def test_client_response_get_submitted_and_client_request_gets_untracked_upon_re
    assert response.parent_event_id == client_request_event_id
 
 def test_log_entry_gets_applied_to_state_machine_upon_replication_success(client_response_submitted):
+   # TODO test to ensure that order  does not matter
    testing_queue, client_queue,  client_request_event_id = client_response_submitted
    state = testing_queue.get_nowait()
    assert  state.state['key_store'] == {'x': 176}
@@ -124,72 +129,6 @@ def test_leader_resends_unsuccessful_append_entries_to_followers(unsuccessful_ap
         )
     ]
 
-@pytest.fixture(name='commit')
-def test_entries_get_committed_after_replication_success_setup():
-    event_queues = {
-       'state_machine': mp.Queue(),
-       'communicator': mp.Queue(),
-       'log_writer': mp.Queue(),
-       'snapshot_writer': mp.Queue()
-
-    }
-    startup_state = "leader"
-
-    proc = mp.Process(
-            target=start_state_machine,
-            args=(
-                event_queues,
-                startup_state
-            )
-    )
-    proc.start()
-
-    snapshot_writer_proc = mp.Process(
-            target=start_snapshot_writer,
-            args=(
-                'tmp',
-                event_queues['state_machine'],
-                event_queues['snapshot_writer'],
-            )
-    )
-    snapshot_writer_proc.start()
-
-    message1 = ClientRequest(command='_set', data={'key': 'x', 'value': 1})
-    message2 = ClientRequest(command='_set', data={'key': 'y', 'value': 12})
-    event_queues['state_machine'].put(message1)
-    event_queues['state_machine'].put(message2)
-
-    message1 = MajorityReplicated(
-         term=0,
-         prev_log_index=None,
-         prev_log_term=0,
-         entries=[LogEntry(0, 0, '_set', {'key': 'x', 'value': 1})],
-         leader_commit=-1
-     )
-
-    message2 = MajorityReplicated(
-         term=0,
-         prev_log_index=0,
-         prev_log_term=0,
-         entries=[LogEntry(1, 0, '_set', {'key': 'y', 'value': 12})],
-         leader_commit=-1
-     )
-    event_queues['state_machine'].put(message1)
-    event_queues['state_machine'].put(message2)
-
-    event_queues['state_machine'].put(SnapshotRequest())
-
-    exists = wait_for_snapshot_file('tmp/snapshot_1')
-    if not exists:
-        proc.kill()
-        snapshot_writer_proc.kill()
-        pytest.fail('Snapshot Writer failed to create snapshot file within the alloted timeout')
-
-    yield
-
-    proc.kill()
-    snapshot_writer_proc.kill()
-
 @pytest.fixture(name="commit_unordered")
 def test_entries_get_committed_after_unordered_replication_success_setup():
     event_queues = {
@@ -268,31 +207,37 @@ def test_entries_get_committed_after_unordered_replication_success_setup():
     proc.kill()
     snapshot_writer_proc.kill()
 
-@pytest.fixture(name='tracked_client_requests')
-def test_client_requests_get_tracked_until_replication_success_setup():
-    event_queues = {
-       'state_machine': mp.Queue(),
-       'communicator': mp.Queue(),
-       'log_writer': mp.Queue(),
-       'snapshot_writer': mp.Queue(),
-       'testing': mp.Queue()
-
-    }
-    startup_state = "leader"
+@pytest.fixture(name='append_entries_client_requests')
+def test_append_entries_associated_with_client_requests_get_tracked_setup():
+    event_queues = common.create_event_queues()
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    peer_node_state=None
 
     proc = mp.Process(
-            target=start_state_machine,
+            target=common.start_state_machine,
             args=(
                 event_queues,
-                startup_state
+                startup_state,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                peer_node_state
+                )
             )
-    )
     proc.start()
 
     event_id1 = str(uuid.uuid4())
     message1 = ClientRequest(
         event_id=event_id1,
         parent_event_id=None,
+        event_trigger=None,
         command='_set',
         data={'key': 'x', 'value': 1}
     )
@@ -300,15 +245,16 @@ def test_client_requests_get_tracked_until_replication_success_setup():
     message2 = ClientRequest(
         event_id=event_id2,
         parent_event_id=None,
+        event_trigger=None,
         command='_set',
         data={'key': 'y', 'value': 12}
     )
-    event_queues['state_machine'].put(message1)
-    event_queues['state_machine'].put(message2)
-    event_queues['state_machine'].put(LocalStateSnapshotRequestForTesting())
+    event_queues.state_machine.put_nowait(message1)
+    event_queues.state_machine.put_nowait(message2)
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
     time.sleep(0.5)
-    yield event_queues['testing'], event_id1, event_id2
+    yield event_queues, event_id1, event_id2
 
     proc.kill()
 

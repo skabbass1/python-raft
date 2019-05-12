@@ -18,6 +18,7 @@ from raft.structures.messages import (
     LocalStateSnapshotForTesting,
 )
 from raft.structures.log_entry import LogEntry
+from raft.structures.event_trigger import EventTrigger
 
 class StateMachine:
     def __init__(
@@ -65,7 +66,7 @@ class StateMachine:
         }
 
         # TODO rename to a more appropriate name
-        self._client_requests = {}
+        self._append_entries_requests = {}
 
 
         #TODO  boostrap log and keystore from disk
@@ -150,15 +151,15 @@ class StateMachine:
             # TODO What do do if no vote?
             pass
 
-    def _handle_client_request(self, message):
+    def _handle_client_request(self, event):
        log_entry = LogEntry(
                 log_index=len(self._log) + 1,
                 term=self._term,
-                command=message.command,
-                data=message.data
+                command=event.command,
+                data=event.data
         )
        self._log.append(log_entry)
-       self._event_queues['log_writer'].put_nowait(log_entry)
+       self._event_queues.log_writer.put_nowait(log_entry)
 
        prev_log_index = log_entry.log_index -1
        if prev_log_index < 0:
@@ -169,13 +170,14 @@ class StateMachine:
 
        for node_name, state  in  self._peer_node_state.items():
            # TODO Check if node is in good state. No need
-           # to keep sending new  messages to a dead node. Start sending again
+           # to keep sending new  events to a dead node. Start sending again
            # once hearbeat succeeds. Although a single failed append entries will
            # keep looping
            entries_to_send = self._log[state['next_index'] - 1:]
            append_entries = AppendEntries(
                event_id=str(uuid.uuid4()),
-               parent_event_id=message.event_id,
+               parent_event_id=event.event_id,
+               event_trigger=EventTrigger.CLIENT_REQUEST,
                source_server=self._node_config.name,
                destination_server=node_name,
                term=self._term,
@@ -185,8 +187,8 @@ class StateMachine:
                leader_commit=self._commit_index,
                entries=entries_to_send
            )
-           self._event_queues['communicator'].put_nowait(append_entries)
-           self._client_requests[message.event_id] = {
+           self._event_queues.dispatcher.put_nowait(append_entries)
+           self._append_entries_requests[(event.event_id, EventTrigger.CLIENT_REQUEST)] = {
                'replicated_on_peers': set(),
                'log_index_to_apply': log_entry.log_index
            }
@@ -194,7 +196,7 @@ class StateMachine:
 
     def _handle_append_entries_response(self, event):
         empty = object()
-        nodes = self._client_requests.get(event.parent_event_id, empty)
+        nodes = self._append_entries_requests.get(event.parent_event_id, empty)
         # TODO What about append entries reposnses not triggered byt client requestys
         if nodes is not empty:
             if event.success:
@@ -218,7 +220,7 @@ class StateMachine:
                             success=True
                         )
                     )
-                    del self._client_requests[event.parent_event_id]
+                    del self._append_entries_requests[event.parent_event_id]
             else:
                 self._peer_node_state[event.source_server]['next_index'] -=1
                 entries_to_send = self._log[self._peer_node_state[event.source_server]['next_index'] - 1:]
@@ -254,7 +256,7 @@ class StateMachine:
             'state': self._state,
             'term': self._term,
             'commit_index': self._commit_index,
-            'client_requests': self._client_requests,
+            'append_entries_requests': self._append_entries_requests,
             'key_store': self._key_store
            }
         ))
