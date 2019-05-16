@@ -36,7 +36,7 @@ def start_state_machine(
         key_store=key_store,
         peer_node_state=peer_node_state
     )
-    state_machine.run()
+    state_machine.run(leader_heartbeats_enabled=False)
 
 # TODO This method is duplicated in tests/test_logwriter.py.
 # Pull out into common utils file

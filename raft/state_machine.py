@@ -46,7 +46,7 @@ class StateMachine:
                 self._election_timeout_range.start,
                 self._election_timeout_range.stop
                 )
-        self._start_time = None
+        self._election_timeout_clock_start_time = None
 
         self._term = initial_term
         self._state = startup_state or 'follower'
@@ -73,36 +73,46 @@ class StateMachine:
         self._log = log or []
         self._key_store = key_store or {}
 
-    def run(self):
-        self._start_time = time.time()
+    def run(self, leader_heartbeats_enabled):
+        self._election_timeout_clock_start_time = time.time()
         event_queue = self._event_queues.state_machine
         while True:
-            try:
-                event = event_queue.get_nowait()
-                if event.__class__ == RequestVoteResponse:
-                    self._handle_request_for_vote_response(event)
+            self._process_next_event(event_queue)
+            self._check_election_timeout_and_begin_election()
+            if leader_heartbeats_enabled:
+                self._send_heartbeat()
 
-                elif event.__class__ == AppendEntries:
-                    self._handle_append_entries(event)
 
-                elif event.__class__ == AppendEntriesResponse:
-                    self._handle_append_entries_response(event)
+    def _process_next_event(self, event_queue):
+        try:
+            event = event_queue.get_nowait()
+            if event.__class__ == RequestVoteResponse:
+                self._handle_request_for_vote_response(event)
 
-                elif event.__class__ == ClientRequest:
-                    self._handle_client_request(event)
+            elif event.__class__ == AppendEntries:
+                self._handle_append_entries(event)
 
-                elif event.__class__ == SnapshotRequest:
-                    self._handle_snapshot_request(event)
+            elif event.__class__ == AppendEntriesResponse:
+                self._handle_append_entries_response(event)
 
-                elif event.__class__ == LocalStateSnapshotRequestForTesting:
-                    self._handle_local_state_snapshot_request_for_testing(event)
+            elif event.__class__ == ClientRequest:
+                self._handle_client_request(event)
 
-                else:
-                    raise RuntimeError(f'Unandled event type {event.__class__}')
-            except queue.Empty:
-                elapsed_time = (time.time() - self._start_time) * 1000
-                if self._state != 'leader' and  elapsed_time > self._election_timeout:
-                    self._begin_election()
+            elif event.__class__ == SnapshotRequest:
+                self._handle_snapshot_request(event)
+
+            elif event.__class__ == LocalStateSnapshotRequestForTesting:
+                self._handle_local_state_snapshot_request_for_testing(event)
+
+            else:
+                raise RuntimeError(f'Unandled event type {event.__class__}')
+        except queue.Empty:
+            pass
+
+    def _check_election_timeout_and_begin_election(self):
+        elapsed_time = (time.time() - self._election_timeout_clock_start_time) * 1000
+        if self._state != 'leader' and  elapsed_time > self._election_timeout:
+            self._begin_election()
 
     def _begin_election(self):
         self._votes_received = 0
@@ -113,7 +123,7 @@ class StateMachine:
             self._election_timeout_range.start,
             self._election_timeout_range.stop
         )
-        self._start_time = time.time()
+        self._election_timeout_clock_start_time = time.time()
         self._request_for_votes()
 
     def _request_for_votes(self):
@@ -278,6 +288,8 @@ class StateMachine:
             self._peer_node_state[node_name]['match_index'] = 0
 
     def _send_heartbeat(self):
+        if self._state != 'leader':
+            return
         for node_name, _ in  self._peer_node_state.items():
             append_entries = AppendEntries(
                 event_id=str(uuid.uuid4()),
@@ -288,7 +300,7 @@ class StateMachine:
                 term=self._term,
                 leader_id=self._node_config.name,
                 prev_log_index=self._log[-1].log_index if self._log else 0,
-                prev_log_term=self._log[-1].log_term if self._log else 0,
+                prev_log_term=self._log[-1].term if self._log else 0,
                 leader_commit=self._commit_index,
                 entries=[]
             )
