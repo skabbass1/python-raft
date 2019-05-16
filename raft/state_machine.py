@@ -82,7 +82,6 @@ class StateMachine:
             if leader_heartbeats_enabled:
                 self._send_heartbeat()
 
-
     def _process_next_event(self, event_queue):
         try:
             event = event_queue.get_nowait()
@@ -143,6 +142,7 @@ class StateMachine:
             self._event_queues.dispatcher.put_nowait(event)
 
     def _handle_append_entries(self, event):
+        self._election_timeout_clock_start_time = time.time()
         if event.term  >= self._term:
             self._state = 'follower'
             self._term = event.term
