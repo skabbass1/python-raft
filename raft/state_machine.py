@@ -203,26 +203,24 @@ class StateMachine:
                'log_index_to_apply': log_entry.log_index
            }
 
-
     def _handle_append_entries_response(self, event):
         empty = object()
-        nodes = self._append_entries_requests.get((event.parent_event_id, event.event_trigger), empty)
-        # TODO What about append entries reposnses not triggered byt client requestys
-        if nodes is not empty:
+        request = self._append_entries_requests.get((event.parent_event_id, event.event_trigger), empty)
+        if request is not empty:
             if event.success:
-                nodes['replicated_on_peers'].add(event.source_server)
+                request['replicated_on_peers'].add(event.source_server)
                 next_index = self._peer_node_state[event.source_server]['next_index']
                 match_index  = self._peer_node_state[event.source_server]['match_index']
 
-                new_next_index = nodes['log_index_to_apply'] + 1
+                new_next_index = request['log_index_to_apply'] + 1
                 if new_next_index > next_index:
                     self._peer_node_state[event.source_server]['next_index'] = new_next_index
-                if nodes['log_index_to_apply'] > match_index:
-                    self._peer_node_state[event.source_server]['match_index'] = nodes['log_index_to_apply']
+                if request['log_index_to_apply'] > match_index:
+                    self._peer_node_state[event.source_server]['match_index'] = request['log_index_to_apply']
 
-                if len(nodes['replicated_on_peers']) > len(self._peer_node_configs) - len(nodes['replicated_on_peers']):
-                    # TODO ensure you keep retrying on nodes on whom replication has not yet succeeded
-                    self._apply_log_index(nodes['log_index_to_apply'])
+                if len(request['replicated_on_peers']) > len(self._peer_node_configs) - len(request['replicated_on_peers']):
+                    # TODO ensure you keep retrying on request on whom replication has not yet succeeded
+                    self._apply_log_index(request['log_index_to_apply'])
                     self._event_queues.client_response.put_nowait(
                         ClientRequestResponse(
                             event_id=str(uuid.uuid4()),
