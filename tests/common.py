@@ -1,7 +1,8 @@
 import multiprocessing as  mp
+import time
 
 from raft.structures.event_queues import EventQueues
-from raft.structures.node_config import NodeConfig
+from raft.structures.peer import Peer
 from raft.state_machine import StateMachine
 
 def create_event_queues():
@@ -17,16 +18,16 @@ def create_event_queues():
 def start_state_machine(
     event_queues,
     startup_state,
+    peers,
     initial_term,
     election_timeout,
     commit_index,
     log,
     key_store,
-    peer_node_state
 ):
     state_machine = StateMachine(
-        node_config=NodeConfig(name=leader_state_machine_name(), address=('localhost', 5000)),
-        peer_node_configs=peer_node_configs(),
+        node_config=leader_state_machine_name(),
+        peers=peers or default_peers(),
         startup_state=startup_state,
         initial_term=initial_term,
         commit_index=commit_index,
@@ -34,9 +35,8 @@ def start_state_machine(
         event_queues=event_queues,
         log=log,
         key_store=key_store,
-        peer_node_state=peer_node_state
     )
-    state_machine.run(leader_heartbeats_enabled=False)
+    state_machine.run()
 
 # TODO This method is duplicated in tests/test_logwriter.py.
 # Pull out into common utils file
@@ -52,14 +52,44 @@ def start_log_writer(
     )
     log_writer.run()
 
-def peer_node_configs():
-    return [
-        NodeConfig('peer1', ('localhost', 5001)),
-        NodeConfig('peer2', ('localhost', 5002)),
-        NodeConfig('peer3',('localhost', 5003)),
-        NodeConfig('peer4',('localhost', 5004)),
-        NodeConfig('peer5',('localhost', 5005)),
-    ]
+def default_peers():
+    return {
+       'peer1':Peer(
+            name='peer1',
+            address=('localhost', 5001),
+            next_heartbeat_time=time.monotonic() + 1,
+            match_index=0,
+            next_index=0
+        ),
+       'peer2': Peer(
+            name='peer2',
+            address=('localhost', 5002),
+            next_heartbeat_time=time.monotonic() + 1,
+            match_index=0,
+            next_index=0
+        ),
+       'peer3':Peer(
+            name='peer3',
+            address=('localhost', 5003),
+            next_heartbeat_time=time.monotonic() + 1,
+            match_index=0,
+            next_index=0
+        ),
+       'peer4':Peer(
+            name='peer4',
+            address=('localhost', 5004),
+            next_heartbeat_time=time.monotonic() + 1,
+            match_index=0,
+            next_index=0
+        ),
+       'peer5':Peer(
+            name='peer5',
+            address=('localhost', 5005),
+            next_heartbeat_time=time.monotonic() + 1,
+            match_index=0,
+            next_index=0
+        )
+    }
 
 def leader_state_machine_name():
     return 'state_machine1'

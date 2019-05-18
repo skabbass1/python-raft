@@ -37,6 +37,7 @@ AppendEntries = namedtuple(
 AppendEntriesResponse = namedtuple(
     'AppendEntriesResponse',
     BaseEvent._fields + EventRouting._fields + (
+        'last_log_index',
         'term',
         'success',
     )

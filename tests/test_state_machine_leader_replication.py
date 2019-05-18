@@ -16,6 +16,400 @@ from raft.structures.messages import (
 from raft.structures.event_trigger import EventTrigger
 from . import common
 
+def test_peer_match_index_and_next_index_get_updated_on_replication_success(replication_success_quorum):
+    event = replication_success_quorum.testing.get_nowait()
+    peers = event.state['peers']
+
+    assert peers['peer1'].match_index == 1
+    assert peers['peer1'].next_index == 2
+    assert peers['peer3'].match_index == 1
+    assert peers['peer3'].next_index == 2
+    assert peers['peer5'].match_index == 1
+    assert peers['peer5'].next_index == 2
+    assert peers['peer2'].match_index == 0
+    assert peers['peer2'].next_index == 1
+    assert peers['peer4'].match_index == 0
+    assert peers['peer4'].next_index == 1
+
+def test_peer_match_index_and_next_index_get_updated_correctly_on_unordered_replication_success_notifications(replication_success_unordered_quorum):
+    event = replication_success_unordered_quorum.testing.get_nowait()
+    peers = event.state['peers']
+
+    assert peers['peer1'].match_index == 3
+    assert peers['peer1'].next_index == 4
+    assert peers['peer3'].match_index == 3
+    assert peers['peer3'].next_index == 4
+    assert peers['peer5'].match_index == 3
+    assert peers['peer5'].next_index == 4
+    assert peers['peer2'].match_index == 3
+    assert peers['peer2'].next_index == 4
+    assert peers['peer4'].match_index == 3
+    assert peers['peer4'].next_index == 4
+
+def test_peer_match_index_and_next_index_get_updated_on_replication_failure(replication_success_quorum):
+    event = replication_success_quorum.testing.get_nowait()
+    peers = event.state['peers']
+
+    # failed replication
+    assert peers['peer2'].match_index == 0
+    assert peers['peer2'].next_index == 1
+    assert peers['peer4'].match_index == 0
+    assert peers['peer4'].next_index == 1
+
+    # successful replication
+    assert peers['peer1'].match_index == 1
+    assert peers['peer1'].next_index == 2
+    assert peers['peer3'].match_index == 1
+    assert peers['peer3'].next_index == 2
+    assert peers['peer5'].match_index == 1
+    assert peers['peer5'].next_index == 2
+
+
+def test_commit_index_advances_and_log_entries_get_committed_upon_replication_success_quorum(replication_success_unordered_quorum):
+    testing_queue = replication_success_unordered_quorum.testing
+    event = testing_queue.get_nowait()
+    assert event.state['commit_index'] == 3
+    assert event.state['key_store'] == {'x': 1, 'y': 2, 'z': 22}
+
+def test_commit_index_and_commited_entries_do_not_change_when_replication_success_quorum_pending(replication_success_quorum_pending):
+    testing_queue = replication_success_quorum_pending.testing
+    event = testing_queue.get_nowait()
+    assert event.state['commit_index'] == 0
+    assert event.state['key_store'] == {}
+
+@pytest.mark.skip("TODO")
+def test_client_responses_get_submitted_upon_replication_success_quorum():
+    pass
+
+@pytest.fixture(name='replication_success_quorum_pending')
+def replication_success_quorum_pending():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                )
+            )
+    proc.start()
+
+    message1 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    message2 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'y', 'value': 167}
+    )
+    event_queues.state_machine.put_nowait(message1)
+    event_queues.state_machine.put_nowait(message2)
+
+    for peer in ('peer1', 'peer3'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+
+    yield event_queues
+
+    proc.kill()
+
+@pytest.fixture(name='replication_success_quorum')
+def replication_success_partial_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                )
+            )
+    proc.start()
+
+    message1 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    event_queues.state_machine.put_nowait(message1)
+
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer2', 'peer4'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=False
+            )
+        )
+
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+
+    yield event_queues
+
+    proc.kill()
+
+@pytest.fixture(name='replication_success_unordered_quorum')
+def replication_success_unordered_quorum_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                )
+            )
+    proc.start()
+
+    message1 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    message2 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'y', 'value': 2}
+    )
+    message3 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'z', 'value': 22}
+    )
+    event_queues.state_machine.put_nowait(message1)
+    event_queues.state_machine.put_nowait(message2)
+    event_queues.state_machine.put_nowait(message3)
+
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=3,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=2,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer2', 'peer4'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=3,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer2', 'peer4'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+    for peer in ('peer2', 'peer4'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=2,
+                term=0,
+                success=True
+            )
+        )
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+
+    yield event_queues
+
+    proc.kill()
+
+@pytest.fixture(name='replication_success_quorum')
+def replication_success_quorum():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                )
+            )
+    proc.start()
+
+    message1 = ClientRequest(
+        event_id=str(uuid.uuid4()),
+        parent_event_id=None,
+        event_trigger=None,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+    event_queues.state_machine.put_nowait(message1)
+
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                parent_event_id=None,
+                event_trigger=None,
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.5)
+
+    yield event_queues
+
+    proc.kill()
+
 def test_append_entries_associated_with_client_requests_get_tracked(append_entries_client_requests):
     event_queues, event_id1, event_id2 = append_entries_client_requests
     event = event_queues.testing.get_nowait()
@@ -135,208 +529,6 @@ def test_leader_resends_unsuccessful_append_entries_to_followers(unsuccessful_ap
         )
     ]
 
-@pytest.fixture(name='append_entries_client_requests')
-def test_append_entries_associated_with_client_requests_get_tracked_setup():
-    event_queues = common.create_event_queues()
-    startup_state = 'leader'
-    initial_term = 0
-    election_timeout = range(150, 300)
-    commit_index = None
-    log=None
-    key_store=None
-    peer_node_state=None
-
-    proc = mp.Process(
-            target=common.start_state_machine,
-            args=(
-                event_queues,
-                startup_state,
-                initial_term,
-                election_timeout,
-                commit_index,
-                log,
-                key_store,
-                peer_node_state
-                )
-            )
-    proc.start()
-
-    event_id1 = str(uuid.uuid4())
-    message1 = ClientRequest(
-        event_id=event_id1,
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'x', 'value': 1}
-    )
-    event_id2 = str(uuid.uuid4())
-    message2 = ClientRequest(
-        event_id=event_id2,
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'y', 'value': 12}
-    )
-    event_queues.state_machine.put_nowait(message1)
-    event_queues.state_machine.put_nowait(message2)
-    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
-
-    time.sleep(0.5)
-    yield event_queues, event_id1, event_id2
-
-    proc.kill()
-
-@pytest.fixture(name='replication_success')
-def test_client_response_get_submitted_and_client_request_gets_untracked_upon_replication_success_setup():
-    event_queues = common.create_event_queues()
-    startup_state = 'leader'
-    initial_term = 0
-    election_timeout = range(150, 300)
-    commit_index = None
-    log=None
-    key_store=None
-    peer_node_state=None
-
-    proc = mp.Process(
-            target=common.start_state_machine,
-            args=(
-                event_queues,
-                startup_state,
-                initial_term,
-                election_timeout,
-                commit_index,
-                log,
-                key_store,
-                peer_node_state
-                )
-            )
-    proc.start()
-
-    replicated_event = ClientRequest(
-        event_id=str(uuid.uuid4()),
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'x', 'value': 176}
-    )
-    unreplicated_event = ClientRequest(
-        event_id=str(uuid.uuid4()),
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'y', 'value': 12}
-    )
-    event_queues.state_machine.put_nowait(replicated_event)
-    event_queues.state_machine.put_nowait(unreplicated_event)
-
-    for peer in ('peer1', 'peer3', 'peer5'):
-        event_queues.state_machine.put_nowait(
-            AppendEntriesResponse(
-                event_id=str(uuid.uuid4()),
-                parent_event_id=replicated_event.event_id,
-                event_trigger=EventTrigger.CLIENT_REQUEST,
-                source_server=peer,
-                destination_server='state_machine1',
-                term=0,
-                success=True
-            )
-        )
-    for peer in ('peer2', 'peer5'):
-        event_queues.state_machine.put_nowait(
-            AppendEntriesResponse(
-                event_id=str(uuid.uuid4()),
-                parent_event_id=unreplicated_event.event_id,
-                event_trigger=EventTrigger.CLIENT_REQUEST,
-                source_server=peer,
-                destination_server='state_machine1',
-                term=0,
-                success=True
-            )
-        )
-
-    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
-
-    time.sleep(0.5)
-
-    yield event_queues, replicated_event, unreplicated_event
-
-    proc.kill()
-
-@pytest.fixture(name='replication_success_unordered')
-def test_uncomitted_log_entries_preceeding_the_last_replicated_log_entry_get_applied_to_state_machine_setup():
-    event_queues = common.create_event_queues()
-    startup_state = 'leader'
-    initial_term = 0
-    election_timeout = range(150, 300)
-    commit_index = None
-    log=None
-    key_store=None
-    peer_node_state=None
-
-    proc = mp.Process(
-            target=common.start_state_machine,
-            args=(
-                event_queues,
-                startup_state,
-                initial_term,
-                election_timeout,
-                commit_index,
-                log,
-                key_store,
-                peer_node_state
-                )
-            )
-    proc.start()
-
-    replicated_event1 = ClientRequest(
-        event_id=str(uuid.uuid4()),
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'x', 'value': 176}
-    )
-    replicated_event2 = ClientRequest(
-        event_id=str(uuid.uuid4()),
-        parent_event_id=None,
-        event_trigger=None,
-        command='_set',
-        data={'key': 'y', 'value': 12}
-    )
-    event_queues.state_machine.put_nowait(replicated_event1)
-    event_queues.state_machine.put_nowait(replicated_event2)
-
-    for peer in ('peer1', 'peer3', 'peer5'):
-        event_queues.state_machine.put_nowait(
-            AppendEntriesResponse(
-                event_id=str(uuid.uuid4()),
-                parent_event_id=replicated_event2.event_id,
-                event_trigger=EventTrigger.CLIENT_REQUEST,
-                source_server=peer,
-                destination_server='state_machine1',
-                term=0,
-                success=True
-            )
-        )
-    for peer in ('peer3', 'peer4', 'peer1'):
-        event_queues.state_machine.put_nowait(
-            AppendEntriesResponse(
-                event_id=str(uuid.uuid4()),
-                parent_event_id=replicated_event1.event_id,
-                event_trigger=EventTrigger.CLIENT_REQUEST,
-                source_server=peer,
-                destination_server='state_machine1',
-                term=0,
-                success=True
-            )
-        )
-
-    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
-
-    time.sleep(0.5)
-
-    yield event_queues, replicated_event1, replicated_event2
-
-    proc.kill()
 
 @pytest.fixture(name='log_entries')
 def test_leader_sends_log_entries_from_next_index_upto_the_latest_log_index_upon_client_request_setup():

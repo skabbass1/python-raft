@@ -20,11 +20,13 @@ from raft.structures.messages import (
 from raft.structures.log_entry import LogEntry
 from raft.structures.event_trigger import EventTrigger
 
+NEXT_HEARTBEAT_DELAY_SECONDS = 1
+
 class StateMachine:
     def __init__(
         self,
         node_config,
-        peer_node_configs,
+        peers,
         startup_state,
         initial_term,
         election_timeout,
@@ -32,14 +34,13 @@ class StateMachine:
         #TODO Improve the initilialization here
         commit_index=None,
         log=None,
-        key_store=None,
-        peer_node_state=None
+        key_store=None
     ):
 
         self._event_queues = event_queues
 
-        self._node_config = node_config
-        self._peer_node_configs = peer_node_configs
+        self._name = node_config
+        self._peers = peers
 
         self._election_timeout_range = election_timeout
         self._election_timeout = random.randint(
@@ -53,34 +54,23 @@ class StateMachine:
         self._votes_received = 0
         self._commit_index = commit_index or 0
 
-        # replication related
-
-        # TODO rename to follower
-        self._peer_node_state = peer_node_state or {
-                name:{
-                    'next_index': 1,
-                    'match_index': 0,
-                    'node_state': None,
-                    'time_since_request': None
-               } for name, _ in peer_node_configs
-        }
-
-        # TODO rename to a more appropriate name
-        self._append_entries_requests = {}
-
-
         #TODO  boostrap log and keystore from disk
         self._log = log or []
         self._key_store = key_store or {}
 
-    def run(self, leader_heartbeats_enabled):
+        # TODO cleanup
+        if self._state == 'leader':
+            self._initialize_next_index()
+
+    def run(self):
         self._election_timeout_clock_start_time = time.time()
         event_queue = self._event_queues.state_machine
         while True:
             self._process_next_event(event_queue)
+            self._send_append_entries()
+            self._advance_commit_index()
+            self._send_client_responses()
             self._check_election_timeout_and_begin_election()
-            if leader_heartbeats_enabled:
-                self._send_heartbeat()
 
     def _process_next_event(self, event_queue):
         try:
@@ -108,6 +98,25 @@ class StateMachine:
         except queue.Empty:
             pass
 
+    def _advance_commit_index(self):
+        quorum = int(len(self._peers) / 2) + 1
+        min_quorum_match_index = min(
+            sorted(
+                [p.match_index for p in self._peers.values()],
+                reverse=True
+            )[:quorum]
+        )
+        if min_quorum_match_index > self._commit_index:
+            for idx in range(self._commit_index + 1, min_quorum_match_index + 1):
+                self._commit_log_entry(self._log[idx - 1])
+                self._commit_index = idx
+
+    def _send_client_responses(self):
+        # Check if the commit index is greater or equal to the log indes
+        # associated with client request. If so, mark client request as complete
+        # create data structure to hold client requests
+        pass
+
     def _check_election_timeout_and_begin_election(self):
         elapsed_time = (time.time() - self._election_timeout_clock_start_time) * 1000
         if self._state != 'leader' and  elapsed_time > self._election_timeout:
@@ -127,15 +136,15 @@ class StateMachine:
 
     def _request_for_votes(self):
         # TODO handle network failures with request for vote calls
-        for peer_node in self._peer_node_configs:
+        for peer_node in self._peers:
             event = RequestVote(
                 event_id=str(uuid.uuid4()),
                 parent_event_id=None,
                 event_trigger=None,
-                source_server=self._node_config.name,
+                source_server=self._name.name,
                 destination_server=peer_node.name,
                 term=self._term,
-                candidate_id=self._node_config.name,
+                candidate_id=self._name.name,
                 last_log_index=len(self._log) if self._log else 0,
                 last_log_term=self._log[-1].term if self._log else 0
             )
@@ -147,13 +156,12 @@ class StateMachine:
             self._state = 'follower'
             self._term = event.term
 
-
     def _handle_request_for_vote_response(self, event):
         # TODO what to do with event['term']
         if self._state == 'candidate' and event.term == self._term:
             if event.vote_granted:
                 self._votes_received += 1
-                if self._votes_received > len(self._peer_node_configs) - self._votes_received:
+                if self._votes_received > len(self._peers) - self._votes_received:
                     self._transition_to_leader_state()
                 else:
                     pass
@@ -171,89 +179,22 @@ class StateMachine:
        self._log.append(log_entry)
        self._event_queues.log_writer.put_nowait(log_entry)
 
-       prev_log_index = log_entry.log_index -1
-       if prev_log_index == 0:
-           prev_log_index = 0
-           prev_log_term = 0
-       else:
-           prev_log_term = self._log[prev_log_index].term
-
-       for node_name, state  in  self._peer_node_state.items():
-           # TODO Check if node is in good state. No need
-           # to keep sending new  events to a dead node. Start sending again
-           # once hearbeat succeeds. Although a single failed append entries will
-           # keep looping
-           entries_to_send = self._log[state['next_index'] - 1:]
-           append_entries = AppendEntries(
-               event_id=str(uuid.uuid4()),
-               parent_event_id=event.event_id,
-               event_trigger=EventTrigger.CLIENT_REQUEST,
-               source_server=self._node_config.name,
-               destination_server=node_name,
-               term=self._term,
-               leader_id=self._node_config.name,
-               prev_log_index=prev_log_index,
-               prev_log_term=prev_log_term,
-               leader_commit=self._commit_index,
-               entries=entries_to_send
-           )
-           self._event_queues.dispatcher.put_nowait(append_entries)
-           self._append_entries_requests[(event.event_id, EventTrigger.CLIENT_REQUEST)] = {
-               'replicated_on_peers': set(),
-               'log_index_to_apply': log_entry.log_index
-           }
-
     def _handle_append_entries_response(self, event):
-        empty = object()
-        request = self._append_entries_requests.get((event.parent_event_id, event.event_trigger), empty)
-        if request is not empty:
-            if event.success:
-                request['replicated_on_peers'].add(event.source_server)
-                next_index = self._peer_node_state[event.source_server]['next_index']
-                match_index  = self._peer_node_state[event.source_server]['match_index']
+        peer = self._peers.get(event.source_server)
+        if peer is None:
+            # TODO log warning for unrecognized peer
+            return
 
-                new_next_index = request['log_index_to_apply'] + 1
-                if new_next_index > next_index:
-                    self._peer_node_state[event.source_server]['next_index'] = new_next_index
-                if request['log_index_to_apply'] > match_index:
-                    self._peer_node_state[event.source_server]['match_index'] = request['log_index_to_apply']
+        if event.success:
+            match_index = event.last_log_index
+            if match_index > peer.match_index:
+                peer.match_index = match_index
+                peer.next_index = match_index + 1
 
-                if len(request['replicated_on_peers']) > len(self._peer_node_configs) - len(request['replicated_on_peers']):
-                    # TODO ensure you keep retrying on request on whom replication has not yet succeeded
-                    self._apply_log_index(request['log_index_to_apply'])
-                    self._event_queues.client_response.put_nowait(
-                        ClientRequestResponse(
-                            event_id=str(uuid.uuid4()),
-                            parent_event_id=event.parent_event_id,
-                            event_trigger=None,
-                            success=True
-                        )
-                    )
-                    del self._append_entries_requests[(event.parent_event_id, event.event_trigger)]
-            else:
-                self._peer_node_state[event.source_server]['next_index'] -=1
-                entries_to_send = self._log[self._peer_node_state[event.source_server]['next_index'] - 1:]
-                append_entries = AppendEntries(
-                    event_id=str(uuid.uuid4()),
-                    parent_event_id=event.parent_event_id,
-                    event_trigger=event.event_trigger,
-                    source_server=self._node_config.name,
-                    destination_server=event.source_server,
-                    term=self._term,
-                    leader_id=self._node_config.name,
-                    prev_log_index=entries_to_send[0].log_index - 1,
-                    prev_log_term=entries_to_send[0].term,
-                    leader_commit=self._commit_index,
-                    entries=entries_to_send
-                )
-                self._event_queues.dispatcher.put_nowait(append_entries)
 
-    def _apply_log_index(self, log_index):
-        # TODO handle different terms?
-        if log_index > self._commit_index:
-            for index in range(self._commit_index + 1, log_index + 1):
-                 self._commit_log_entry(self._log[index - 1])
-                 self._commit_index = log_index
+        else:
+            if peer.next_index > 1:
+                peer.next_index -=1
 
     def _handle_snapshot_request(self, message):
         self._event_queues['snapshot_writer'].put_nowait(
@@ -262,51 +203,53 @@ class StateMachine:
 
     def _handle_local_state_snapshot_request_for_testing(self, message):
         self._event_queues.testing.put_nowait( LocalStateSnapshotForTesting(state={
-            'peer_node_state': self._peer_node_state,
+            'peers': self._peers,
             'state': self._state,
             'term': self._term,
             'commit_index': self._commit_index,
-            'append_entries_requests': self._append_entries_requests,
             'key_store': self._key_store,
             'log': self._log
            }
         ))
 
-
     def _transition_to_leader_state(self):
         self._state = 'leader'
         self._votes_recived = 0
-        self._send_heartbeat()
+        self._send_append_entries()
         self._initialize_next_index()
 
-
     def _initialize_next_index(self):
-        for node_name, _ in self._peer_node_configs:
-            self._peer_node_state[node_name]['next_index'] = len(self._log) + 1
-            self._peer_node_state[node_name]['match_index'] = 0
+        for peer in self._peers.values():
+            peer.next_index = len(self._log) + 1
+            peer.match_index = 0
 
-    def _send_heartbeat(self):
+    def _send_append_entries(self):
         if self._state != 'leader':
             return
-        for node_name, _ in  self._peer_node_state.items():
-            append_entries = AppendEntries(
-                event_id=str(uuid.uuid4()),
-                parent_event_id=None,
-                event_trigger=None,
-                source_server=self._node_config.name,
-                destination_server=node_name,
-                term=self._term,
-                leader_id=self._node_config.name,
-                prev_log_index=self._log[-1].log_index if self._log else 0,
-                prev_log_term=self._log[-1].term if self._log else 0,
-                leader_commit=self._commit_index,
-                entries=[]
-            )
-            self._event_queues.dispatcher.put_nowait(append_entries)
+        for peer in self._peers.values():
+            now = time.monotonic()
+            if now > peer.next_heartbeat_time or self._log[-1].log_index >= peer.next_index:
+                entries = self._log[peer.next_index - 1:]
+                prev_log_index = entries[0].log_index - 1 if entries else self._log[-1].log_index
+                prev_log_term = entries[0].term if entries else self._log[-1].term
+                append_entries = AppendEntries(
+                    event_id=str(uuid.uuid4()),
+                    parent_event_id=None,
+                    event_trigger=None,
+                    source_server=self._name,
+                    destination_server=peer.name,
+                    term=self._term,
+                    leader_id=self._name,
+                    prev_log_index=self._log[-1].log_index if self._log else 0,
+                    prev_log_term=self._log[-1].term if self._log else 0,
+                    leader_commit=self._commit_index,
+                    entries=entries
+                )
+                self._event_queues.dispatcher.put_nowait(append_entries)
+                peer.next_heartbeat_time = time.monotonic() + NEXT_HEARTBEAT_DELAY_SECONDS
 
     def _commit_log_entry(self, log_entry):
         self._apply_command(log_entry[2], log_entry[3])
-
 
     def _apply_command(self, command, data):
         command_func = getattr(self, command)
@@ -314,5 +257,4 @@ class StateMachine:
 
     def _set(self, data):
         self._key_store[data['key']] = data['value']
-
 
