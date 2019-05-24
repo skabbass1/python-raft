@@ -4,7 +4,7 @@ from collections import namedtuple
 
 BaseEvent = namedtuple(
     'BaseEvent',
-    ('event_id', 'parent_event_id', 'event_trigger'),
+    ('event_id',)
 )
 
 EventRouting = namedtuple('EventRouting', ('source_server', 'destination_server'))
@@ -19,7 +19,7 @@ ClientRequest = namedtuple(
 
 ClientRequestResponse = namedtuple(
     'ClientRequestResponse',
-     BaseEvent._fields  + ('success',)
+      BaseEvent._fields + ('request_id', 'success')
 )
 
 AppendEntries = namedtuple(
@@ -61,29 +61,9 @@ RequestVoteResponse = namedtuple(
     )
 )
 
-MajorityReplicated = namedtuple(
-         'MajorityReplicated',
-         ['term', 'prev_log_index', 'prev_log_term', 'entries', 'leader_commit']
-)
-
-SnapshotRequest = namedtuple(
-    'SnapshotRequest',
-    []
-)
-
-Snapshot = namedtuple(
-    'Snapshot',
-    ['commit_index', 'data']
-)
-
-InitializeNextIndex = namedtuple(
-    'InitializeNextIndex',
-    ['last_log_index']
-)
-
 LocalStateSnapshotRequestForTesting = namedtuple(
     'LocalStateSnapshotRequestForTesting',
-    []
+    ()
 )
 
 LocalStateSnapshotForTesting = namedtuple(

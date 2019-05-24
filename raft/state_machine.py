@@ -5,20 +5,19 @@ import time
 import uuid
 from collections import defaultdict
 
-from raft.structures.messages import (
+from raft.structures.events import (
     AppendEntries,
     RequestVote,
     RequestVoteResponse,
     ClientRequest,
     ClientRequestResponse,
     AppendEntriesResponse,
-    Snapshot,
-    SnapshotRequest,
     LocalStateSnapshotRequestForTesting,
     LocalStateSnapshotForTesting,
 )
 from raft.structures.log_entry import LogEntry
 from raft.structures.event_trigger import EventTrigger
+from raft.structures.pending_client_request import PendingClientRequest
 
 NEXT_HEARTBEAT_DELAY_SECONDS = 1
 
@@ -57,13 +56,15 @@ class StateMachine:
         #TODO  boostrap log and keystore from disk
         self._log = log or []
         self._key_store = key_store or {}
+        # TODO custom data structure for client requests
+        self._pending_client_requests = []
 
         # TODO cleanup
         if self._state == 'leader':
             self._initialize_next_index()
 
     def run(self):
-        self._election_timeout_clock_start_time = time.time()
+        self._election_timeout_clock_start_time = time.monotonic()
         event_queue = self._event_queues.state_machine
         while True:
             self._process_next_event(event_queue)
@@ -87,9 +88,6 @@ class StateMachine:
             elif event.__class__ == ClientRequest:
                 self._handle_client_request(event)
 
-            elif event.__class__ == SnapshotRequest:
-                self._handle_snapshot_request(event)
-
             elif event.__class__ == LocalStateSnapshotRequestForTesting:
                 self._handle_local_state_snapshot_request_for_testing(event)
 
@@ -112,13 +110,27 @@ class StateMachine:
                 self._commit_index = idx
 
     def _send_client_responses(self):
-        # Check if the commit index is greater or equal to the log indes
-        # associated with client request. If so, mark client request as complete
-        # create data structure to hold client requests
-        pass
+        committed_requests = [
+            r for r in self._pending_client_requests
+            if r.request_commit_index <= self._commit_index
+        ]
+
+        for request in committed_requests:
+            self._event_queues.client_response.put_nowait(
+                ClientRequestResponse(
+                    event_id=str(uuid.uuid4()),
+                    request_id=request.request_id,
+                    success=True
+                )
+            )
+
+        self._pending_client_requests[:] = [
+            r for r in self._pending_client_requests
+            if r.request_commit_index > self._commit_index
+        ]
 
     def _check_election_timeout_and_begin_election(self):
-        elapsed_time = (time.time() - self._election_timeout_clock_start_time) * 1000
+        elapsed_time = (time.monotonic() - self._election_timeout_clock_start_time) * 1000
         if self._state != 'leader' and  elapsed_time > self._election_timeout:
             self._begin_election()
 
@@ -131,7 +143,7 @@ class StateMachine:
             self._election_timeout_range.start,
             self._election_timeout_range.stop
         )
-        self._election_timeout_clock_start_time = time.time()
+        self._election_timeout_clock_start_time = time.monotonic()
         self._request_for_votes()
 
     def _request_for_votes(self):
@@ -139,8 +151,6 @@ class StateMachine:
         for peer_node in self._peers:
             event = RequestVote(
                 event_id=str(uuid.uuid4()),
-                parent_event_id=None,
-                event_trigger=None,
                 source_server=self._name.name,
                 destination_server=peer_node.name,
                 term=self._term,
@@ -151,7 +161,7 @@ class StateMachine:
             self._event_queues.dispatcher.put_nowait(event)
 
     def _handle_append_entries(self, event):
-        self._election_timeout_clock_start_time = time.time()
+        self._election_timeout_clock_start_time = time.monotonic()
         if event.term  >= self._term:
             self._state = 'follower'
             self._term = event.term
@@ -178,6 +188,13 @@ class StateMachine:
         )
        self._log.append(log_entry)
        self._event_queues.log_writer.put_nowait(log_entry)
+       self._pending_client_requests.append(
+           PendingClientRequest(
+               request_id=event.event_id,
+               request_commit_index=log_entry.log_index,
+               request_receive_time=time.monotonic()
+           )
+       )
 
     def _handle_append_entries_response(self, event):
         peer = self._peers.get(event.source_server)
@@ -190,16 +207,9 @@ class StateMachine:
             if match_index > peer.match_index:
                 peer.match_index = match_index
                 peer.next_index = match_index + 1
-
-
         else:
             if peer.next_index > 1:
                 peer.next_index -=1
-
-    def _handle_snapshot_request(self, message):
-        self._event_queues['snapshot_writer'].put_nowait(
-            Snapshot(commit_index=self._commit_index, data=self._key_store)
-        )
 
     def _handle_local_state_snapshot_request_for_testing(self, message):
         self._event_queues.testing.put_nowait( LocalStateSnapshotForTesting(state={
@@ -208,7 +218,8 @@ class StateMachine:
             'term': self._term,
             'commit_index': self._commit_index,
             'key_store': self._key_store,
-            'log': self._log
+            'log': self._log,
+            'pending_client_requests': self._pending_client_requests
            }
         ))
 
@@ -234,8 +245,6 @@ class StateMachine:
                 prev_log_term = entries[0].term if entries else self._log[-1].term
                 append_entries = AppendEntries(
                     event_id=str(uuid.uuid4()),
-                    parent_event_id=None,
-                    event_trigger=None,
                     source_server=self._name,
                     destination_server=peer.name,
                     term=self._term,
