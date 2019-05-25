@@ -96,6 +96,15 @@ def test_correct_log_entries_get_sent_to_lagging_peer(lagging_peer):
         LogEntry(log_index=3, term=0, command='_set', data={'key': 'z', 'value': 5})
     ]
 
+def test_leader_sends_hearbeats(heartbeats):
+    event_queues = heartbeats
+    events = [event_queues.dispatcher.get_nowait() for _ in range(5)]
+    peers = set(e.destination_server for e in events)
+    entries = [e.entries for e in events]
+    assert len(peers) == 5
+    assert any(entries) == False
+
+
 @pytest.fixture(name='replication_success_quorum_pending')
 def replication_success_quorum_pending_setup():
     event_queues = common.create_event_queues()
@@ -521,6 +530,40 @@ def lagging_peer_setup():
     ]
     key_store=None
     initialize_next_index=False
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                initialize_next_index
+                )
+            )
+    proc.start()
+
+    time.sleep(0.5)
+
+    yield event_queues
+
+    proc.kill()
+
+@pytest.fixture(name='heartbeats')
+def hearbeats_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = 0
+    log = None
+    key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,

@@ -59,35 +59,35 @@ def default_peers():
        'peer1':Peer(
             name='peer1',
             address=('localhost', 5001),
-            next_heartbeat_time=time.monotonic() + 1,
+            next_heartbeat_time=time.monotonic() + 0.1,
             match_index=0,
             next_index=0
         ),
        'peer2': Peer(
             name='peer2',
             address=('localhost', 5002),
-            next_heartbeat_time=time.monotonic() + 1,
+            next_heartbeat_time=time.monotonic() + 0.1,
             match_index=0,
             next_index=0
         ),
        'peer3':Peer(
             name='peer3',
             address=('localhost', 5003),
-            next_heartbeat_time=time.monotonic() + 1,
+            next_heartbeat_time=time.monotonic() + 0.1,
             match_index=0,
             next_index=0
         ),
        'peer4':Peer(
             name='peer4',
             address=('localhost', 5004),
-            next_heartbeat_time=time.monotonic() + 1,
+            next_heartbeat_time=time.monotonic() + 0.1,
             match_index=0,
             next_index=0
         ),
        'peer5':Peer(
             name='peer5',
             address=('localhost', 5005),
-            next_heartbeat_time=time.monotonic() + 1,
+            next_heartbeat_time=time.monotonic() + 0.1,
             match_index=0,
             next_index=0
         )
