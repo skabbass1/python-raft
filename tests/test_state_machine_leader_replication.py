@@ -505,7 +505,7 @@ def lagging_peer_setup():
         'peer1_lagging': Peer(
             name='peer1_lagging',
             address=('localhost', 5501),
-            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_heartbeat_time=time.monotonic() + 0.1,
             next_index=2,
             match_index=1
         ),

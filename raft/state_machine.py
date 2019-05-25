@@ -244,11 +244,15 @@ class StateMachine:
         for peer in self._peers.values():
             now = time.monotonic()
             #TODO Dont send if peer in bad state. Wait until backoff timeout
-            # TODO BUG - handle case when log is empty
-            if now > peer.next_heartbeat_time or self._log[-1].log_index >= peer.next_index:
+            if now > peer.next_heartbeat_time:
                 entries = self._log[peer.next_index - 1:]
-                prev_log_index = entries[0].log_index - 1 if entries else self._log[-1].log_index
-                prev_log_term = entries[0].term if entries else self._log[-1].term
+                if len(self._log) > 0:
+                    prev_log_index = entries[0].log_index - 1 if entries else self._log[-1].log_index
+                    prev_log_term = entries[0].term if entries else self._log[-1].term
+                else:
+                    prev_log_index = 0
+                    prev_log_term = 0
+
                 append_entries = AppendEntries(
                     event_id=str(uuid.uuid4()),
                     source_server=self._name,
