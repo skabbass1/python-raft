@@ -33,7 +33,9 @@ class StateMachine:
         #TODO Improve the initilialization here
         commit_index=None,
         log=None,
-        key_store=None
+        key_store=None,
+        initialize_next_index=False
+
     ):
 
         self._event_queues = event_queues
@@ -59,8 +61,8 @@ class StateMachine:
         # TODO custom data structure for client requests
         self._pending_client_requests = []
 
-        # TODO cleanup
-        if self._state == 'leader':
+        # # TODO cleanup
+        if self._state == 'leader' and initialize_next_index:
             self._initialize_next_index()
 
     def run(self):
@@ -123,6 +125,8 @@ class StateMachine:
                     success=True
                 )
             )
+
+        # TODO: Removed timedout requests. Add timedout attribute to client request enum
 
         self._pending_client_requests[:] = [
             r for r in self._pending_client_requests
@@ -239,6 +243,8 @@ class StateMachine:
             return
         for peer in self._peers.values():
             now = time.monotonic()
+            #TODO Dont send if peer in bad state. Wait until backoff timeout
+            # TODO BUG - handle case when log is empty
             if now > peer.next_heartbeat_time or self._log[-1].log_index >= peer.next_index:
                 entries = self._log[peer.next_index - 1:]
                 prev_log_index = entries[0].log_index - 1 if entries else self._log[-1].log_index

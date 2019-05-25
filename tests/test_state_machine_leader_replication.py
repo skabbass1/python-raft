@@ -14,6 +14,8 @@ from raft.structures.events import (
     LocalStateSnapshotRequestForTesting,
 )
 from raft.structures.event_trigger import EventTrigger
+from raft.structures.log_entry import LogEntry
+from raft.structures.peer import Peer
 from . import common
 
 def test_peer_match_index_and_next_index_get_updated_on_replication_success(replication_success_quorum):
@@ -85,6 +87,15 @@ def test_client_responses_get_submitted_upon_replication_success_quorum(client_r
 
     assert response_event.request_id == fulfilled_request_id
 
+def test_correct_log_entries_get_sent_to_lagging_peer(lagging_peer):
+    event_queues = lagging_peer
+    event = event_queues.dispatcher.get_nowait()
+    assert event.destination_server == 'peer1_lagging'
+    assert event.entries == [
+        LogEntry(log_index=2, term=0, command='_set', data={'key': 'y', 'value': 2}),
+        LogEntry(log_index=3, term=0, command='_set', data={'key': 'z', 'value': 5})
+    ]
+
 @pytest.fixture(name='replication_success_quorum_pending')
 def replication_success_quorum_pending_setup():
     event_queues = common.create_event_queues()
@@ -95,6 +106,7 @@ def replication_success_quorum_pending_setup():
     commit_index = None
     log=None
     key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,
@@ -107,6 +119,7 @@ def replication_success_quorum_pending_setup():
                 commit_index,
                 log,
                 key_store,
+                initialize_next_index
                 )
             )
     proc.start()
@@ -154,6 +167,7 @@ def replication_success_partial_setup():
     commit_index = None
     log=None
     key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,
@@ -166,6 +180,7 @@ def replication_success_partial_setup():
                 commit_index,
                 log,
                 key_store,
+                initialize_next_index
                 )
             )
     proc.start()
@@ -218,6 +233,7 @@ def replication_success_quorum_pending():
     commit_index = None
     log=None
     key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,
@@ -230,6 +246,7 @@ def replication_success_quorum_pending():
                 commit_index,
                 log,
                 key_store,
+                initialize_next_index
                 )
             )
     proc.start()
@@ -277,6 +294,7 @@ def replication_success_unordered_quorum_setup():
     commit_index = None
     log=None
     key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,
@@ -289,6 +307,7 @@ def replication_success_unordered_quorum_setup():
                 commit_index,
                 log,
                 key_store,
+                initialize_next_index
                 )
             )
     proc.start()
@@ -396,6 +415,7 @@ def client_request_replication_success_setup():
     commit_index = None
     log=None
     key_store=None
+    initialize_next_index=True
 
     proc = mp.Process(
             target=common.start_state_machine,
@@ -408,6 +428,7 @@ def client_request_replication_success_setup():
                 commit_index,
                 log,
                 key_store,
+                initialize_next_index
                 )
             )
     proc.start()
@@ -445,6 +466,81 @@ def client_request_replication_success_setup():
     time.sleep(0.5)
 
     yield event_queues, fulfilled_request_id, unfulfilled_request_id
+
+    proc.kill()
+
+@pytest.fixture(name='lagging_peer')
+def lagging_peer_setup():
+    event_queues = common.create_event_queues()
+    heartbeat_delay_seconds = 5
+    peers={
+        'peer2': Peer(
+            name='peer2',
+            address=('localhost', 5502),
+            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_index=4,
+            match_index=3
+        ),
+        'peer3': Peer(
+            name='peer3',
+            address=('localhost', 5503),
+            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_index=4,
+            match_index=3
+        ),
+        'peer4': Peer(
+            name='peer4',
+            address=('localhost', 5504),
+            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_index=4,
+            match_index=3
+        ),
+        'peer5': Peer(
+            name='peer5',
+            address=('localhost', 5505),
+            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_index=4,
+            match_index=3
+        ),
+        'peer1_lagging': Peer(
+            name='peer1_lagging',
+            address=('localhost', 5501),
+            next_heartbeat_time=time.monotonic() + heartbeat_delay_seconds,
+            next_index=2,
+            match_index=1
+        ),
+    }
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = 3
+    log=[
+        LogEntry(log_index=1, term=0, command='_set', data={'key': 'x', 'value':1}),
+        LogEntry(log_index=2, term=0, command='_set', data={'key': 'y', 'value':2}),
+        LogEntry(log_index=3, term=0, command='_set', data={'key': 'z', 'value':5}),
+    ]
+    key_store=None
+    initialize_next_index=False
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                initialize_next_index
+                )
+            )
+    proc.start()
+
+    time.sleep(0.5)
+
+    yield event_queues
 
     proc.kill()
 

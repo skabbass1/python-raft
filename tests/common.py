@@ -24,6 +24,7 @@ def start_state_machine(
     commit_index,
     log,
     key_store,
+    initialize_next_index
 ):
     state_machine = StateMachine(
         node_config=leader_state_machine_name(),
@@ -35,6 +36,7 @@ def start_state_machine(
         event_queues=event_queues,
         log=log,
         key_store=key_store,
+        initialize_next_index=initialize_next_index
     )
     state_machine.run()
 
