@@ -11,6 +11,7 @@ from raft.structures.events import (
     AppendEntriesResponse,
     ClientRequest,
     RequestVoteResponse,
+    PeerCommunicationNetworkError,
     LocalStateSnapshotRequestForTesting,
 )
 from raft.structures.event_trigger import EventTrigger
@@ -104,6 +105,13 @@ def test_leader_sends_hearbeats(heartbeats):
     assert len(peers) == 5
     assert any(entries) == False
 
+def test_leader_backsoff_from_sending_append_entries_to_peer_in_network_error(backoff):
+    event_queues = backoff
+    events = [event_queues.dispatcher.get_nowait() for _ in range(5)]
+    peers = set(e.destination_server for e in events)
+    assert len(peers) == 4
+    # peer4 in error state - so not heartbear should be sent
+    assert 'peer4' not in peers
 
 @pytest.fixture(name='replication_success_quorum_pending')
 def replication_success_quorum_pending_setup():
@@ -581,7 +589,49 @@ def hearbeats_setup():
             )
     proc.start()
 
-    time.sleep(0.5)
+    time.sleep(0.1)
+
+    yield event_queues
+
+    proc.kill()
+
+@pytest.fixture(name='backoff')
+def backoff_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = 0
+    log = None
+    key_store=None
+    initialize_next_index=True
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                initialize_next_index
+                )
+            )
+    proc.start()
+    event_queues.state_machine.put_nowait(
+        PeerCommunicationNetworkError(
+            event_id=str(uuid.uuid4()),
+            source_server='state_machine1',
+            destination_server='peer4'
+        )
+    )
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.2)
 
     yield event_queues
 

@@ -12,6 +12,7 @@ from raft.structures.events import (
     ClientRequest,
     ClientRequestResponse,
     AppendEntriesResponse,
+    PeerCommunicationNetworkError,
     LocalStateSnapshotRequestForTesting,
     LocalStateSnapshotForTesting,
 )
@@ -19,7 +20,8 @@ from raft.structures.log_entry import LogEntry
 from raft.structures.event_trigger import EventTrigger
 from raft.structures.pending_client_request import PendingClientRequest
 
-NEXT_HEARTBEAT_DELAY_SECONDS = 1
+NEXT_HEARTBEAT_DELAY_SECONDS = 0.1
+NETWORK_FAILURE_BACKOFF_DELAY_SECONDS = 3
 
 class StateMachine:
     def __init__(
@@ -90,6 +92,9 @@ class StateMachine:
             elif event.__class__ == ClientRequest:
                 self._handle_client_request(event)
 
+            elif event.__class__ == PeerCommunicationNetworkError:
+                self._handle_peer_communication_network_error(event)
+
             elif event.__class__ == LocalStateSnapshotRequestForTesting:
                 self._handle_local_state_snapshot_request_for_testing(event)
 
@@ -127,7 +132,6 @@ class StateMachine:
             )
 
         # TODO: Removed timedout requests. Add timedout attribute to client request enum
-
         self._pending_client_requests[:] = [
             r for r in self._pending_client_requests
             if r.request_commit_index > self._commit_index
@@ -215,6 +219,13 @@ class StateMachine:
             if peer.next_index > 1:
                 peer.next_index -=1
 
+    def _handle_peer_communication_network_error(self, event):
+        peer = self._peers.get(event.destination_server)
+        if peer is None:
+            # TODO log warning maybe
+            return
+        peer.backoff_until = time.monotonic() + NETWORK_FAILURE_BACKOFF_DELAY_SECONDS
+
     def _handle_local_state_snapshot_request_for_testing(self, message):
         self._event_queues.testing.put_nowait( LocalStateSnapshotForTesting(state={
             'peers': self._peers,
@@ -244,7 +255,7 @@ class StateMachine:
         for peer in self._peers.values():
             now = time.monotonic()
             #TODO Dont send if peer in bad state. Wait until backoff timeout
-            if now > peer.next_heartbeat_time:
+            if now > max(peer.next_heartbeat_time, peer.backoff_until):
                 entries = self._log[peer.next_index - 1:]
                 if len(self._log) > 0:
                     prev_log_index = entries[0].log_index - 1 if entries else self._log[-1].log_index

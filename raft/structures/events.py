@@ -61,6 +61,11 @@ RequestVoteResponse = namedtuple(
     )
 )
 
+PeerCommunicationNetworkError = namedtuple(
+    'PeerCommunicationNetworkError',
+    BaseEvent._fields + EventRouting._fields
+)
+
 LocalStateSnapshotRequestForTesting = namedtuple(
     'LocalStateSnapshotRequestForTesting',
     ()
