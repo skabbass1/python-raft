@@ -178,7 +178,7 @@ def replication_success_quorum_pending_setup():
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -244,7 +244,7 @@ def replication_success_partial_setup():
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -305,7 +305,7 @@ def replication_success_quorum_pending():
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -426,7 +426,7 @@ def replication_success_unordered_quorum_setup():
         )
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -490,7 +490,7 @@ def client_request_replication_success_setup():
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues, fulfilled_request_id, unfulfilled_request_id
 
@@ -557,7 +557,7 @@ def client_request_replication_failure_setup():
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues, fulfilled_request_id, unfulfilled_request_id
 
@@ -632,7 +632,7 @@ def lagging_peer_setup():
             )
     proc.start()
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 
@@ -666,7 +666,7 @@ def hearbeats_setup():
             )
     proc.start()
 
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     yield event_queues
 

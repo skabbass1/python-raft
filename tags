@@ -1,0 +1,259 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+AppendEntries	raft/structures/events.py	/^AppendEntries = namedtuple($/;"	v
+AppendEntries	tests/test_cluster_network_communicator.py	/^from raft.structures.messages import AppendEntries$/;"	i
+AppendEntriesResponse	raft/structures/events.py	/^AppendEntriesResponse = namedtuple($/;"	v
+BaseEvent	raft/structures/events.py	/^BaseEvent = namedtuple($/;"	v
+CLIENT_REQUEST	raft/structures/event_trigger.py	/^    CLIENT_REQUEST = 1$/;"	v	class:EventTrigger
+ClientRequest	raft/structures/events.py	/^ClientRequest = namedtuple($/;"	v
+ClientRequestResponse	raft/structures/events.py	/^ClientRequestResponse = namedtuple($/;"	v
+ClusterNetworkCommunicator	raft/cluster_network_communicator.py	/^class ClusterNetworkCommunicator:$/;"	c
+ClusterNetworkCommunicator	tests/test_cluster_network_communicator.py	/^from raft.cluster_network_communicator import ClusterNetworkCommunicator$/;"	i
+ClusterNetworkListener	raft/cluster_network_listener.py	/^class ClusterNetworkListener:$/;"	c
+ClusterNetworkListener	tests/test_cluster_network_communicator.py	/^from raft.cluster_network_listener import ClusterNetworkListener$/;"	i
+ClusterNetworkListener	tests/test_cluster_network_listener.py	/^from raft.cluster_network_listener import ClusterNetworkListener$/;"	i
+Enum	raft/structures/event_trigger.py	/^from enum import Enum$/;"	i
+EventQueues	raft/structures/event_queues.py	/^EventQueues = namedtuple('EventQueues', ($/;"	v
+EventQueues	tests/common.py	/^from raft.structures.event_queues import EventQueues$/;"	i
+EventRouting	raft/structures/events.py	/^EventRouting = namedtuple('EventRouting', ('source_server', 'destination_server'))$/;"	v
+EventTrigger	raft/state_machine.py	/^from raft.structures.event_trigger import EventTrigger$/;"	i
+EventTrigger	raft/structures/event_trigger.py	/^class EventTrigger(Enum):$/;"	c
+EventTrigger	tests/test_state_machine_leader_replication.py	/^from raft.structures.event_trigger import EventTrigger$/;"	i
+LocalStateSnapshotForTesting	raft/structures/events.py	/^LocalStateSnapshotForTesting = namedtuple($/;"	v
+LocalStateSnapshotRequestForTesting	raft/structures/events.py	/^LocalStateSnapshotRequestForTesting = namedtuple($/;"	v
+LogEntry	raft/state_machine.py	/^from raft.structures.log_entry import LogEntry$/;"	i
+LogEntry	raft/structures/log_entry.py	/^LogEntry = namedtuple('LogEntry', ['log_index', 'term', 'command', 'data'])$/;"	v
+LogEntry	tests/test_log_writer.py	/^from raft.structures.log_entry import LogEntry$/;"	i
+LogEntry	tests/test_state_machine.py	/^from raft.structures.log_entry import LogEntry$/;"	i
+LogEntry	tests/test_state_machine_leader_election.py	/^from raft.structures.log_entry import LogEntry$/;"	i
+LogEntry	tests/test_state_machine_leader_replication.py	/^from raft.structures.log_entry import LogEntry$/;"	i
+LogWriter	raft/log_writer.py	/^class LogWriter:$/;"	c
+LogWriter	tests/test_log_writer.py	/^from raft.log_writer import LogWriter$/;"	i
+LogWriter	tests/test_state_machine.py	/^from raft.log_writer import LogWriter$/;"	i
+NETWORK_FAILURE_BACKOFF_DELAY_SECONDS	raft/state_machine.py	/^NETWORK_FAILURE_BACKOFF_DELAY_SECONDS = 3$/;"	v
+NEXT_HEARTBEAT_DELAY_SECONDS	raft/state_machine.py	/^NEXT_HEARTBEAT_DELAY_SECONDS = 0.1$/;"	v
+NodeConfig	raft/structures/node_config.py	/^NodeConfig = namedtuple('NodeConfig', ['name', 'address'])$/;"	v
+NodeConfig	tests/test_cluster_network_communicator.py	/^from raft.structures.node_config  import NodeConfig$/;"	i
+NodeConfig	tests/test_cluster_network_listener.py	/^from raft.structures.node_config import NodeConfig$/;"	i
+NodeConfig	tests/test_state_machine.py	/^from raft.structures.node_config import NodeConfig$/;"	i
+NodeConfig	tests/test_state_machine_leader_election.py	/^from raft.structures.node_config import NodeConfig$/;"	i
+NodeConfig	tests/test_state_machine_leader_replication.py	/^from raft.structures.node_config import NodeConfig$/;"	i
+Peer	raft/structures/peer.py	/^class Peer:$/;"	c
+Peer	tests/common.py	/^from raft.structures.peer import Peer$/;"	i
+Peer	tests/test_state_machine_leader_replication.py	/^from raft.structures.peer import Peer$/;"	i
+PeerCommunicationNetworkError	raft/structures/events.py	/^PeerCommunicationNetworkError = namedtuple($/;"	v
+PendingClientRequest	raft/state_machine.py	/^from raft.structures.pending_client_request import PendingClientRequest$/;"	i
+PendingClientRequest	raft/structures/pending_client_request.py	/^PendingClientRequest = namedtuple($/;"	v
+RequestVote	raft/structures/events.py	/^RequestVote = namedtuple($/;"	v
+RequestVoteResponse	raft/structures/events.py	/^RequestVoteResponse = namedtuple($/;"	v
+Snapshot	tests/test_snapshot_writer.py	/^from raft.structures.messages import Snapshot$/;"	i
+SnapshotWriter	raft/snapshot_writer.py	/^class SnapshotWriter:$/;"	c
+SnapshotWriter	tests/test_snapshot_writer.py	/^from raft.snapshot_writer import SnapshotWriter$/;"	i
+SnapshotWriter	tests/test_state_machine.py	/^from raft.snapshot_writer import SnapshotWriter$/;"	i
+StateMachine	raft/state_machine.py	/^class StateMachine:$/;"	c
+StateMachine	tests/common.py	/^from raft.state_machine import StateMachine$/;"	i
+StateMachine	tests/test_state_machine.py	/^from raft.state_machine import StateMachine$/;"	i
+__init__	raft/cluster_network_communicator.py	/^    def __init__(self, peer_node_configs, message_queue):$/;"	m	class:ClusterNetworkCommunicator
+__init__	raft/cluster_network_listener.py	/^    def __init__(self, node_config, message_queue):$/;"	m	class:ClusterNetworkListener
+__init__	raft/log_writer.py	/^    def __init__(self, log_location, max_buffer_size, incoming_message_queue):$/;"	m	class:LogWriter
+__init__	raft/snapshot_writer.py	/^    def __init__($/;"	m	class:SnapshotWriter
+__init__	raft/state_machine.py	/^    def __init__($/;"	m	class:StateMachine
+__init__	raft/structures/peer.py	/^    def __init__(self, name, address, next_heartbeat_time, match_index, next_index):$/;"	m	class:Peer
+__init__.py	raft/__init__.py	1;"	F
+__init__.py	raft/structures/__init__.py	1;"	F
+__init__.py	tests/__init__.py	1;"	F
+__repr__	raft/structures/peer.py	/^    def __repr__(self):$/;"	m	class:Peer	file:
+_advance_commit_index	raft/state_machine.py	/^    def _advance_commit_index(self):$/;"	m	class:StateMachine
+_apply_command	raft/state_machine.py	/^    def _apply_command(self, command, data):$/;"	m	class:StateMachine
+_begin_election	raft/state_machine.py	/^    def _begin_election(self):$/;"	m	class:StateMachine
+_check_election_timeout_and_begin_election	raft/state_machine.py	/^    def _check_election_timeout_and_begin_election(self):$/;"	m	class:StateMachine
+_commit_log_entry	raft/state_machine.py	/^    def _commit_log_entry(self, log_entry):$/;"	m	class:StateMachine
+_flush_log_buffer_to_disk	raft/log_writer.py	/^    def _flush_log_buffer_to_disk(self):$/;"	m	class:LogWriter
+_get_connected_socket	raft/cluster_network_communicator.py	/^    def _get_connected_socket(self, address):$/;"	m	class:ClusterNetworkCommunicator
+_handle_append_entries	raft/state_machine.py	/^    def _handle_append_entries(self, event):$/;"	m	class:StateMachine
+_handle_append_entries_response	raft/state_machine.py	/^    def _handle_append_entries_response(self, event):$/;"	m	class:StateMachine
+_handle_client_request	raft/state_machine.py	/^    def _handle_client_request(self, event):$/;"	m	class:StateMachine
+_handle_local_state_snapshot_request_for_testing	raft/state_machine.py	/^    def _handle_local_state_snapshot_request_for_testing(self, message):$/;"	m	class:StateMachine
+_handle_peer_communication_network_error	raft/state_machine.py	/^    def _handle_peer_communication_network_error(self, event):$/;"	m	class:StateMachine
+_handle_request_for_vote_response	raft/state_machine.py	/^    def _handle_request_for_vote_response(self, event):$/;"	m	class:StateMachine
+_initialize_next_index	raft/state_machine.py	/^    def _initialize_next_index(self):$/;"	m	class:StateMachine
+_listen	raft/cluster_network_listener.py	/^    def _listen(self):$/;"	m	class:ClusterNetworkListener
+_pack	raft/cluster_network_communicator.py	/^    def _pack(self, msg):$/;"	m	class:ClusterNetworkCommunicator
+_parse_content	raft/cluster_network_listener.py	/^    def _parse_content(self, content):$/;"	m	class:ClusterNetworkListener
+_process_next_event	raft/state_machine.py	/^    def _process_next_event(self, event_queue):$/;"	m	class:StateMachine
+_read_content	raft/cluster_network_listener.py	/^    def _read_content(self, s, content_len):$/;"	m	class:ClusterNetworkListener
+_read_content_len	raft/cluster_network_listener.py	/^    def _read_content_len(self, s):$/;"	m	class:ClusterNetworkListener
+_request_for_votes	raft/state_machine.py	/^    def _request_for_votes(self):$/;"	m	class:StateMachine
+_send_append_entries	raft/state_machine.py	/^    def _send_append_entries(self):$/;"	m	class:StateMachine
+_send_client_responses	raft/state_machine.py	/^    def _send_client_responses(self):$/;"	m	class:StateMachine
+_send_to_peers	raft/cluster_network_communicator.py	/^    def _send_to_peers(self, msg):$/;"	m	class:ClusterNetworkCommunicator
+_set	raft/state_machine.py	/^    def _set(self, data):$/;"	m	class:StateMachine
+_transition_to_leader_state	raft/state_machine.py	/^    def _transition_to_leader_state(self):$/;"	m	class:StateMachine
+_write_snapshot_to_disk	raft/snapshot_writer.py	/^    def _write_snapshot_to_disk(self, message):$/;"	m	class:SnapshotWriter
+backoff_setup	tests/test_state_machine_leader_replication.py	/^def backoff_setup():$/;"	f
+client_request_replication_success_setup	tests/test_state_machine_leader_replication.py	/^def client_request_replication_success_setup():$/;"	f
+cluster_network_communicator.py	raft/cluster_network_communicator.py	1;"	F
+cluster_network_listener.py	raft/cluster_network_listener.py	1;"	F
+common	tests/test_state_machine_leader_election.py	/^from . import common$/;"	i
+common	tests/test_state_machine_leader_replication.py	/^from . import common$/;"	i
+common.py	tests/common.py	1;"	F
+communicator	tests/test_cluster_network_communicator.py	/^def communicator(peer_listener_queues):$/;"	f
+conftest.py	conftest.py	1;"	F
+create_event_queues	tests/common.py	/^def create_event_queues():$/;"	f
+default_peers	tests/common.py	/^def default_peers():$/;"	f
+defaultdict	raft/state_machine.py	/^from collections import defaultdict$/;"	i
+event_queues.py	raft/structures/event_queues.py	1;"	F
+event_trigger.py	raft/structures/event_trigger.py	1;"	F
+events.py	raft/structures/events.py	1;"	F
+from_json	raft/cluster_network_listener.py	/^from raft.structures.messages import from_json$/;"	i
+from_json	raft/structures/events.py	/^def from_json(o):$/;"	f
+hearbeats_setup	tests/test_state_machine_leader_replication.py	/^def hearbeats_setup():$/;"	f
+json	raft/cluster_network_communicator.py	/^import json$/;"	i
+json	raft/structures/events.py	/^import json$/;"	i
+json	tests/test_messages.py	/^import json$/;"	i
+lagging_peer_setup	tests/test_state_machine_leader_replication.py	/^def lagging_peer_setup():$/;"	f
+leader_state_machine_name	tests/common.py	/^def leader_state_machine_name():$/;"	f
+listener_node_config	tests/test_cluster_network_listener.py	/^def listener_node_config():$/;"	f
+log_entry.py	raft/structures/log_entry.py	1;"	F
+log_writer.py	raft/log_writer.py	1;"	F
+messages	tests/test_messages.py	/^from raft.structures import messages$/;"	i
+mp	tests/common.py	/^import multiprocessing as  mp$/;"	i
+mp	tests/test_cluster_network_communicator.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_cluster_network_listener.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_log_writer.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_snapshot_writer.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_state_machine.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_state_machine_leader_election.py	/^import multiprocessing as mp$/;"	i
+mp	tests/test_state_machine_leader_replication.py	/^import multiprocessing as mp$/;"	i
+namedtuple	raft/structures/event_queues.py	/^from collections import namedtuple$/;"	i
+namedtuple	raft/structures/events.py	/^from collections import namedtuple$/;"	i
+namedtuple	raft/structures/log_entry.py	/^from collections import namedtuple$/;"	i
+namedtuple	raft/structures/node_config.py	/^from collections import namedtuple$/;"	i
+namedtuple	raft/structures/pending_client_request.py	/^from collections import namedtuple$/;"	i
+namedtuple	raft/structures/pending_client_requests.py	/^from collections import namedtuple$/;"	i
+node_config.py	raft/structures/node_config.py	1;"	F
+os	conftest.py	/^import os$/;"	i
+os	tests/test_log_writer.py	/^import os$/;"	i
+os	tests/test_snapshot_writer.py	/^import os$/;"	i
+pathlib	conftest.py	/^import pathlib$/;"	i
+pathlib	tests/test_log_writer.py	/^import pathlib$/;"	i
+pathlib	tests/test_snapshot_writer.py	/^import pathlib$/;"	i
+pathlib	tests/test_state_machine.py	/^import pathlib$/;"	i
+peer.py	raft/structures/peer.py	1;"	F
+peer_node_configs	tests/test_cluster_network_communicator.py	/^def peer_node_configs():$/;"	f
+pending_client_request.py	raft/structures/pending_client_request.py	1;"	F
+pending_client_requests.py	raft/structures/pending_client_requests.py	1;"	F
+pickle	raft/log_writer.py	/^import pickle$/;"	i
+pickle	raft/snapshot_writer.py	/^import pickle$/;"	i
+pickle	tests/test_log_writer.py	/^import pickle$/;"	i
+pickle	tests/test_snapshot_writer.py	/^import pickle$/;"	i
+pickle	tests/test_state_machine.py	/^import pickle$/;"	i
+pytest	conftest.py	/^import pytest$/;"	i
+pytest	tests/test_cluster_network_communicator.py	/^import pytest$/;"	i
+pytest	tests/test_cluster_network_listener.py	/^import pytest$/;"	i
+pytest	tests/test_log_writer.py	/^import pytest$/;"	i
+pytest	tests/test_snapshot_writer.py	/^import pytest$/;"	i
+pytest	tests/test_state_machine.py	/^import pytest$/;"	i
+pytest	tests/test_state_machine_leader_election.py	/^import pytest$/;"	i
+pytest	tests/test_state_machine_leader_replication.py	/^import pytest$/;"	i
+queue	raft/cluster_network_communicator.py	/^import queue$/;"	i
+queue	raft/log_writer.py	/^import queue$/;"	i
+queue	raft/snapshot_writer.py	/^import queue$/;"	i
+queue	raft/state_machine.py	/^import queue$/;"	i
+queue	tests/test_cluster_network_communicator.py	/^import queue$/;"	i
+queue	tests/test_cluster_network_listener.py	/^import queue$/;"	i
+random	raft/state_machine.py	/^import random$/;"	i
+random	tests/test_state_machine.py	/^import random$/;"	i
+replication_success_partial_setup	tests/test_state_machine_leader_replication.py	/^def replication_success_partial_setup():$/;"	f
+replication_success_quorum_pending	tests/test_state_machine_leader_replication.py	/^def replication_success_quorum_pending():$/;"	f
+replication_success_quorum_pending_setup	tests/test_state_machine_leader_replication.py	/^def replication_success_quorum_pending_setup():$/;"	f
+replication_success_unordered_quorum_setup	tests/test_state_machine_leader_replication.py	/^def replication_success_unordered_quorum_setup():$/;"	f
+run	raft/cluster_network_communicator.py	/^    def run(self):$/;"	m	class:ClusterNetworkCommunicator
+run	raft/cluster_network_listener.py	/^    def run(self):$/;"	m	class:ClusterNetworkListener
+run	raft/log_writer.py	/^    def run(self):$/;"	m	class:LogWriter
+run	raft/snapshot_writer.py	/^    def run(self):$/;"	m	class:SnapshotWriter
+run	raft/state_machine.py	/^    def run(self):$/;"	m	class:StateMachine
+select	raft/cluster_network_communicator.py	/^import select$/;"	i
+select	raft/cluster_network_listener.py	/^import select$/;"	i
+send_message	tests/test_cluster_network_listener.py	/^def send_message(message):$/;"	f
+setup_raft_listener	tests/test_cluster_network_listener.py	/^def setup_raft_listener():$/;"	f
+shutil	conftest.py	/^import shutil$/;"	i
+snapshot_writer.py	raft/snapshot_writer.py	1;"	F
+socket	raft/cluster_network_communicator.py	/^import socket$/;"	i
+socket	raft/cluster_network_listener.py	/^import socket$/;"	i
+socket	tests/test_cluster_network_listener.py	/^import socket$/;"	i
+start_communicator	tests/test_cluster_network_communicator.py	/^def start_communicator():$/;"	f
+start_listener	tests/test_cluster_network_communicator.py	/^def start_listener(node_config,  message_queue):$/;"	f
+start_listener	tests/test_cluster_network_listener.py	/^def start_listener(message_queue):$/;"	f
+start_log_writer	tests/common.py	/^def start_log_writer($/;"	f
+start_log_writer	tests/test_log_writer.py	/^def start_log_writer($/;"	f
+start_peer_listeners	tests/test_cluster_network_communicator.py	/^def start_peer_listeners():$/;"	f
+start_snapshot_writer	tests/common.py	/^def start_snapshot_writer($/;"	f
+start_snapshot_writer	tests/test_snapshot_writer.py	/^def start_snapshot_writer($/;"	f
+start_state_machine	tests/common.py	/^def start_state_machine($/;"	f
+state_machine.py	raft/state_machine.py	1;"	F
+struct	raft/cluster_network_communicator.py	/^import struct$/;"	i
+struct	raft/cluster_network_listener.py	/^import struct$/;"	i
+struct	tests/test_cluster_network_listener.py	/^import struct$/;"	i
+sys	raft/cluster_network_listener.py	/^import sys$/;"	i
+sys	raft/state_machine.py	/^import sys$/;"	i
+sys	raft/structures/events.py	/^import sys$/;"	i
+test_buffered_log_entries_get_flushed_to_disk	tests/test_log_writer.py	/^def test_buffered_log_entries_get_flushed_to_disk(setup):$/;"	f
+test_buffered_log_entries_get_flushed_to_disk_setup	tests/test_log_writer.py	/^def test_buffered_log_entries_get_flushed_to_disk_setup():$/;"	f
+test_client_responses_get_submitted_upon_replication_success_quorum	tests/test_state_machine_leader_replication.py	/^def test_client_responses_get_submitted_upon_replication_success_quorum(client_request_replication_success):$/;"	f
+test_cluster_network_communicator.py	tests/test_cluster_network_communicator.py	1;"	F
+test_cluster_network_listener.py	tests/test_cluster_network_listener.py	1;"	F
+test_commands_get_logged	tests/test_state_machine.py	/^def test_commands_get_logged():$/;"	f
+test_commands_get_logged_and_added_to	tests/test_state_machine.py	/^def test_commands_get_logged_and_added_to(logged):$/;"	f
+test_commit_index_advances_and_log_entries_get_committed_upon_replication_success_quorum	tests/test_state_machine_leader_replication.py	/^def test_commit_index_advances_and_log_entries_get_committed_upon_replication_success_quorum(replication_success_unordered_quorum):$/;"	f
+test_commit_index_and_commited_entries_do_not_change_when_replication_success_quorum_pending	tests/test_state_machine_leader_replication.py	/^def test_commit_index_and_commited_entries_do_not_change_when_replication_success_quorum_pending(replication_success_quorum_pending):$/;"	f
+test_converts_namedtuple_from_json	tests/test_messages.py	/^def test_converts_namedtuple_from_json():$/;"	f
+test_converts_namedtuple_to_json	tests/test_messages.py	/^def test_converts_namedtuple_to_json():$/;"	f
+test_correct_log_entries_get_sent_to_lagging_peer	tests/test_state_machine_leader_replication.py	/^def test_correct_log_entries_get_sent_to_lagging_peer(lagging_peer):$/;"	f
+test_correct_request_for_vote_gets_sent_to_all_peers	tests/test_state_machine_leader_election.py	/^def test_correct_request_for_vote_gets_sent_to_all_peers(event_queues1):$/;"	f
+test_correct_request_for_vote_gets_sent_to_all_peers_setup	tests/test_state_machine_leader_election.py	/^def test_correct_request_for_vote_gets_sent_to_all_peers_setup():$/;"	f
+test_election_restart_without_majority_vote	tests/test_state_machine_leader_election.py	/^def test_election_restart_without_majority_vote(event_queues3):$/;"	f
+test_election_restart_without_majority_vote_setup	tests/test_state_machine_leader_election.py	/^def test_election_restart_without_majority_vote_setup():$/;"	f
+test_election_victory_with_majority_vote	tests/test_state_machine_leader_election.py	/^def test_election_victory_with_majority_vote(event_queues2):$/;"	f
+test_election_victory_with_majority_vote_setup	tests/test_state_machine_leader_election.py	/^def test_election_victory_with_majority_vote_setup():$/;"	f
+test_leader_backsoff_from_sending_append_entries_to_peer_in_network_error	tests/test_state_machine_leader_replication.py	/^def test_leader_backsoff_from_sending_append_entries_to_peer_in_network_error(backoff):$/;"	f
+test_leader_sends_hearbeats	tests/test_state_machine_leader_replication.py	/^def test_leader_sends_hearbeats(heartbeats):$/;"	f
+test_legitimate_leader_discovery_mid_election	tests/test_state_machine_leader_election.py	/^def test_legitimate_leader_discovery_mid_election(event_queues4):$/;"	f
+test_legitimate_leader_discovery_mid_election_setup	tests/test_state_machine_leader_election.py	/^def test_legitimate_leader_discovery_mid_election_setup():$/;"	f
+test_log_writer.py	tests/test_log_writer.py	1;"	F
+test_messages.py	tests/test_messages.py	1;"	F
+test_peer_match_index_and_next_index_get_updated_correctly_on_unordered_replication_success_notifications	tests/test_state_machine_leader_replication.py	/^def test_peer_match_index_and_next_index_get_updated_correctly_on_unordered_replication_success_notifications(replication_success_unordered_quorum):$/;"	f
+test_peer_match_index_and_next_index_get_updated_on_replication_failure	tests/test_state_machine_leader_replication.py	/^def test_peer_match_index_and_next_index_get_updated_on_replication_failure(replication_success_quorum):$/;"	f
+test_peer_match_index_and_next_index_get_updated_on_replication_success	tests/test_state_machine_leader_replication.py	/^def test_peer_match_index_and_next_index_get_updated_on_replication_success(replication_success_quorum):$/;"	f
+test_raft_cluster_network_listener_processes_messages	tests/test_cluster_network_listener.py	/^def test_raft_cluster_network_listener_processes_messages(listener_message_queue):$/;"	f
+test_sends_messages_to_connected_peers	tests/test_cluster_network_communicator.py	/^def test_sends_messages_to_connected_peers(peer_listener_queues, communicator):$/;"	f
+test_snapshot_gets_written_to_disk	tests/test_snapshot_writer.py	/^def test_snapshot_gets_written_to_disk(snapshot_setup):$/;"	f
+test_snapshot_gets_written_to_disk_setup	tests/test_snapshot_writer.py	/^def test_snapshot_gets_written_to_disk_setup():$/;"	f
+test_snapshot_writer.py	tests/test_snapshot_writer.py	1;"	F
+test_state_machine.py	tests/test_state_machine.py	1;"	F
+test_state_machine_leader_election.py	tests/test_state_machine_leader_election.py	1;"	F
+test_state_machine_leader_replication.py	tests/test_state_machine_leader_replication.py	1;"	F
+time	raft/state_machine.py	/^import time$/;"	i
+time	tests/common.py	/^import time$/;"	i
+time	tests/test_cluster_network_communicator.py	/^import time$/;"	i
+time	tests/test_cluster_network_listener.py	/^import time$/;"	i
+time	tests/test_log_writer.py	/^import time$/;"	i
+time	tests/test_snapshot_writer.py	/^import time$/;"	i
+time	tests/test_state_machine.py	/^import time$/;"	i
+time	tests/test_state_machine_leader_election.py	/^import time$/;"	i
+time	tests/test_state_machine_leader_replication.py	/^import time$/;"	i
+tmp_directory_setup	conftest.py	/^def tmp_directory_setup():$/;"	f
+to_json	raft/cluster_network_communicator.py	/^from raft.structures.messages import to_json$/;"	i
+to_json	raft/structures/events.py	/^def to_json(o):$/;"	f
+uuid	raft/state_machine.py	/^import uuid$/;"	i
+uuid	tests/test_state_machine.py	/^import uuid$/;"	i
+uuid	tests/test_state_machine_leader_election.py	/^import uuid$/;"	i
+uuid	tests/test_state_machine_leader_replication.py	/^import uuid$/;"	i
+wait_for_log_file	tests/common.py	/^def wait_for_log_file():$/;"	f
+wait_for_log_file	tests/test_log_writer.py	/^def wait_for_log_file():$/;"	f
+wait_for_snapshot_file	tests/common.py	/^def wait_for_snapshot_file(filepath):$/;"	f
+wait_for_snapshot_file	tests/test_snapshot_writer.py	/^def wait_for_snapshot_file():$/;"	f
