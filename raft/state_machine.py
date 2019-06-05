@@ -22,6 +22,7 @@ from raft.structures.pending_client_request import PendingClientRequest
 
 NEXT_HEARTBEAT_DELAY_SECONDS = 0.1
 NETWORK_FAILURE_BACKOFF_DELAY_SECONDS = 3
+CLIENT_REQUEST_TIMEOUT_SECONDS = 1
 
 class StateMachine:
     def __init__(
@@ -122,20 +123,42 @@ class StateMachine:
             if r.request_commit_index <= self._commit_index
         ]
 
-        for request in committed_requests:
-            self._event_queues.client_response.put_nowait(
-                ClientRequestResponse(
-                    event_id=str(uuid.uuid4()),
-                    request_id=request.request_id,
-                    success=True
+        if committed_requests:
+            for request in committed_requests:
+                self._event_queues.client_response.put_nowait(
+                    ClientRequestResponse(
+                        event_id=str(uuid.uuid4()),
+                        request_id=request.request_id,
+                        success=True
+                    )
                 )
-            )
 
-        # TODO: Removed timedout requests. Add timedout attribute to client request enum
-        self._pending_client_requests[:] = [
+            self._pending_client_requests[:] = [
+                r for r in self._pending_client_requests
+                if r.request_commit_index > self._commit_index
+            ]
+
+        timedout_requests = [
             r for r in self._pending_client_requests
-            if r.request_commit_index > self._commit_index
+            if (time.monotonic() - r.request_receive_time) > CLIENT_REQUEST_TIMEOUT_SECONDS
         ]
+
+        if timedout_requests:
+            for request in timedout_requests:
+                self._event_queues.client_response.put_nowait(
+                    ClientRequestResponse(
+                        event_id=str(uuid.uuid4()),
+                        request_id=request.request_id,
+                        success=False
+                    )
+                )
+
+                # TODO Not ideal computing this twice in this method
+                self._pending_client_requests[:] = [
+                    r for r in self._pending_client_requests
+                    if (time.monotonic() - r.request_receive_time) < CLIENT_REQUEST_TIMEOUT_SECONDS
+                ]
+
 
     def _check_election_timeout_and_begin_election(self):
         elapsed_time = (time.monotonic() - self._election_timeout_clock_start_time) * 1000

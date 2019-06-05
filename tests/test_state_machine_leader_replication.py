@@ -113,6 +113,16 @@ def test_leader_backsoff_from_sending_append_entries_to_peer_in_network_error(ba
     # peer4 in error state - so not heartbear should be sent
     assert 'peer4' not in peers
 
+def test_timedout_client_requests_get_removed(client_request_replication_failure):
+    event_queues, fulfilled_request_id, unfulfilled_request_id = client_request_replication_failure
+
+    state_event = event_queues.testing.get_nowait()
+    assert len(state_event.state['pending_client_requests']) == 0
+
+    client_responses = [event_queues.client_response.get_nowait() for _ in range(2)]
+    fulfilled_request =  list(filter(lambda x: x.request_id == fulfilled_request_id, client_responses))[0]
+    unfulfilled_request =  list(filter(lambda x: x.request_id == unfulfilled_request_id, client_responses))[0]
+
 @pytest.fixture(name='replication_success_quorum_pending')
 def replication_success_quorum_pending_setup():
     event_queues = common.create_event_queues()
@@ -477,6 +487,73 @@ def client_request_replication_success_setup():
                 success=True
             )
         )
+
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.1)
+
+    yield event_queues, fulfilled_request_id, unfulfilled_request_id
+
+    proc.kill()
+
+@pytest.fixture(name='client_request_replication_failure')
+def client_request_replication_failure_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = 'leader'
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    initialize_next_index=True
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                initialize_next_index
+                )
+            )
+    proc.start()
+
+    fulfilled_request_id=str(uuid.uuid4())
+    message1 = ClientRequest(
+        event_id=fulfilled_request_id,
+        command='_set',
+        data={'key': 'x', 'value': 1}
+    )
+
+    unfulfilled_request_id=str(uuid.uuid4())
+    message2 = ClientRequest(
+        event_id=unfulfilled_request_id,
+        command='_set',
+        data={'key': 'y', 'value': 4}
+    )
+    event_queues.state_machine.put_nowait(message1)
+    event_queues.state_machine.put_nowait(message2)
+
+    for peer in ('peer1', 'peer3', 'peer5'):
+        event_queues.state_machine.put_nowait(
+            AppendEntriesResponse(
+                event_id=str(uuid.uuid4()),
+                source_server=peer,
+                destination_server='state_machine1',
+                last_log_index=1,
+                term=0,
+                success=True
+            )
+        )
+
+
+    time.sleep(2)
 
     event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
 
