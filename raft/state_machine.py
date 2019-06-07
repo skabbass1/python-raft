@@ -179,13 +179,13 @@ class StateMachine:
 
     def _request_for_votes(self):
         # TODO handle network failures with request for vote calls
-        for peer_node in self._peers:
+        for peer in self._peers.values():
             event = RequestVote(
                 event_id=str(uuid.uuid4()),
-                source_server=self._name.name,
-                destination_server=peer_node.name,
+                source_server=self._name,
+                destination_server=peer.name,
                 term=self._term,
-                candidate_id=self._name.name,
+                candidate_id=self._name,
                 last_log_index=len(self._log) if self._log else 0,
                 last_log_term=self._log[-1].term if self._log else 0
             )
