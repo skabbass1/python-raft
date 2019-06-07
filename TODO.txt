@@ -2,6 +2,6 @@
 * Fix leader election tests
 * Handle request for vote on peer
 * Handle append entries on Peer
- 
+
 
 
