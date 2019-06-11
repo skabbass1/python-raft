@@ -1,7 +1,7 @@
-* Create a separate Log Class
-* Fix leader election tests
-* Handle request for vote on peer
+* Handle request for vote on peer 
+* Handle network failures on request for vote
 * Handle append entries on Peer
+*
 
 
 
