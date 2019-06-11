@@ -198,17 +198,15 @@ class StateMachine:
             self._term = event.term
 
     def _handle_request_for_vote_response(self, event):
-        # TODO what to do with event['term']
-        if self._state == 'candidate' and event.term == self._term:
-            if event.vote_granted:
-                self._votes_received += 1
-                if self._votes_received > len(self._peers) - self._votes_received:
-                    self._transition_to_leader_state()
-                else:
-                    pass
-        else:
-            # TODO What do do if no vote?
-            pass
+        if self._state == 'candidate':
+            if event.term == self._term:
+                if event.vote_granted:
+                    self._votes_received += 1
+                    if self._votes_received > len(self._peers) - self._votes_received:
+                        self._transition_to_leader_state()
+            elif event.term > self._term:
+                self._state = 'follower'
+                self._term = event.term
 
     def _handle_client_request(self, event):
        log_entry = LogEntry(

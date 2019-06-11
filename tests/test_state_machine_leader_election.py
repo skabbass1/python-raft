@@ -50,6 +50,12 @@ def test_legitimate_leader_discovery_mid_election(event_queues4):
     assert event.state['state'] == 'follower'
     assert event.state['term'] == 700
 
+def test_transition_to_follower_if_peer_term_greater_than_candidate_in_vote_response(event_queues5):
+    testing_queue = event_queues5.testing
+    event = testing_queue.get_nowait()
+    assert event.state['state'] == 'follower'
+    assert event.state['term'] == 4
+
 @pytest.fixture(name='event_queues1')
 def test_correct_request_for_vote_gets_sent_to_all_peers_setup():
     event_queues = common.create_event_queues()
@@ -236,3 +242,49 @@ def test_legitimate_leader_discovery_mid_election_setup():
 
     proc.kill()
 
+@pytest.fixture(name='event_queues5')
+def test_transition_to_follower_if_peer_term_greater_than_candidate_in_vote_response_setup():
+    event_queues = common.create_event_queues()
+    peers=None
+    startup_state = None
+    initial_term = 0
+    election_timeout = range(150, 300)
+    commit_index = None
+    log=None
+    key_store=None
+    initialize_next_index=False
+
+    proc = mp.Process(
+            target=common.start_state_machine,
+            args=(
+                event_queues,
+                startup_state,
+                peers,
+                initial_term,
+                election_timeout,
+                commit_index,
+                log,
+                key_store,
+                initialize_next_index
+                )
+            )
+    proc.start()
+    # wait for election to begin and
+    # then grant votes
+    event_queues.dispatcher.get(timeout=1)
+    for peer in ('peer2',):
+        event = RequestVoteResponse(
+            event_id=str(uuid.uuid4()),
+            source_server=peer,
+            destination_server=common.leader_state_machine_name(),
+            vote_granted=False,
+            term=4
+        )
+        event_queues.state_machine.put(event)
+
+    event_queues.state_machine.put(LocalStateSnapshotRequestForTesting())
+
+    time.sleep(0.1)
+    yield event_queues
+
+    proc.kill()
