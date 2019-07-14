@@ -111,7 +111,9 @@ class StateMachine:
     def _advance_commit_index(self):
         quorum = int(len(self._peers) / 2) + 1
         min_quorum_match_index = min(
-            sorted([p.match_index for p in self._peers.values()], reverse=True)[:quorum]
+            sorted([p.match_index for p in self._peers.values()], reverse=True)[
+                :quorum
+            ]
         )
         if min_quorum_match_index > self._commit_index:
             for idx in range(self._commit_index + 1, min_quorum_match_index + 1):
@@ -201,10 +203,71 @@ class StateMachine:
 
     def _handle_append_entries(self, event):
         self._election_timeout_clock_start_time = time.monotonic()
-        if event.term >= self._term:
-            self._state = "follower"
-            self._term = event.term
-            self._voted_for = None
+
+        if event.term < self._term:
+            self._event_queues.dispatcher.put_nowait(
+                AppendEntriesResponse(
+                    event_id=str(uuid.uuid4()),
+                    source_server=self._name,
+                    destination_server=event.source_server,
+                    last_log_index=self._log[-1].log_index,
+                    term=self._term,
+                    success=False,
+                )
+            )
+        else:
+            if event.term > self._term:
+                self._state = "follower"
+                self._term = event.term
+                self._voted_for = None
+
+                last_log_entry = (
+                    self._log[-1]
+                    if self._log
+                    else LogEntry(log_index=0, term=0, command=None, data=None)
+                )
+                if event.prev_log_index > last_log_entry.log_index:
+                    self._event_queues.dispatcher.put_nowait(
+                        AppendEntriesResponse(
+                            event_id=str(uuid.uuid4()),
+                            source_server=self._name,
+                            destination_server=event.source_server,
+                            last_log_index=self._log[-1].log_index,
+                            term=self._term,
+                            success=False,
+                        )
+                    )
+
+                elif event.prev_log_term != self._log[event.prev_log_index - 1].term:
+                    self._event_queues.dispatcher.put_nowait(
+                        AppendEntriesResponse(
+                            event_id=str(uuid.uuid4()),
+                            source_server=self._name,
+                            destination_server=event.source_server,
+                            last_log_index=self._log[-1].log_index,
+                            term=self._term,
+                            success=False,
+                        )
+                    )
+                else:
+                    for entry in event.entries:
+                        if entry.log_index > len(self._log):
+                            self._log.append(entry)
+                        else:
+                            if entry.term != self._log[entry.log_index - 1].term:
+                                del self._log[entry.log_index - 1 :]
+                                self._log.append(entry)
+
+                    self._event_queues.dispatcher.put_nowait(
+                        AppendEntriesResponse(
+                            event_id=str(uuid.uuid4()),
+                            source_server=self._name,
+                            destination_server=event.source_server,
+                            last_log_index=self._log[-1].log_index,
+                            term=self._term,
+                            success=True,
+                        )
+                    )
 
     def _handle_request_for_vote(self, event):
         candidate_log_up_to_date = False
@@ -251,7 +314,10 @@ class StateMachine:
             if event.term == self._term:
                 if event.vote_granted:
                     self._votes_received += 1
-                    if self._votes_received > len(self._peers) - self._votes_received:
+                    if (
+                        self._votes_received
+                        > len(self._peers) - self._votes_received
+                    ):
                         self._transition_to_leader_state()
             elif event.term > self._term:
                 self._state = "follower"
@@ -334,9 +400,13 @@ class StateMachine:
                 entries = self._log[peer.next_index - 1 :]
                 if len(self._log) > 0:
                     prev_log_index = (
-                        entries[0].log_index - 1 if entries else self._log[-1].log_index
+                        entries[0].log_index - 1
+                        if entries
+                        else self._log[-1].log_index
                     )
-                    prev_log_term = entries[0].term if entries else self._log[-1].term
+                    prev_log_term = (
+                        entries[0].term if entries else self._log[-1].term
+                    )
                 else:
                     prev_log_index = 0
                     prev_log_term = 0
