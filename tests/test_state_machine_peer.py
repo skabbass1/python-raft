@@ -54,9 +54,7 @@ def test_peer_does_not_vote_more_than_once_for_the_same_term(one_vote_per_term):
     assert vote_denied_response.term == 4
 
 
-def test_peer_resets_voted_for_and_current_term_on_new_term_greater_than_current_term(
-    new_term
-):
+def test_peer_resets_voted_for_and_current_term_on_new_term_greater_than_current_term(new_term):
     event_queues = new_term
     state_after_first_request_for_vote = event_queues.testing.get_nowait()
     state_after_second_request_for_vote = event_queues.testing.get_nowait()
@@ -68,9 +66,7 @@ def test_peer_resets_voted_for_and_current_term_on_new_term_greater_than_current
     assert state_after_second_request_for_vote.state["term"] == 5
 
 
-def test_peer_rejects_append_entries_if_new_term_less_than_current_term(
-    append_entries_new_term
-):
+def test_peer_rejects_append_entries_if_new_term_less_than_current_term(append_entries_new_term):
     event_queues = append_entries_new_term
     event = event_queues.dispatcher.get_nowait()
     assert event.success == False
@@ -104,11 +100,11 @@ def test_peer_deletes_conflicting_log_entries_and_appends_new(conflicting_entrie
     assert event.last_log_index == 5
 
     assert state.state["log"] == [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=4, command=None, data=None),
+        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=5, term=4, command="_set", data={"key": "a", "value": 1}),
     ]
 
 
@@ -122,15 +118,22 @@ def test_peer_appends_new_entries(new_entries):
     assert event.last_log_index == 8
 
     assert state.state["log"] == [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=2, command=None, data=None),
-        LogEntry(log_index=6, term=2, command=None, data=None),
-        LogEntry(log_index=7, term=2, command=None, data=None),
-        LogEntry(log_index=8, term=2, command=None, data=None),
+        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=8, term=2, command="_set", data={"key": "a", "value": 11}),
     ]
+
+
+def test_peer_commits_entries_and_advance_commit_index(commit_and_advance):
+    event_queues = commit_and_advance
+    event = event_queues.testing.get_nowait()
+    assert event.state["commit_index"] == 8
+    assert event.state["key_store"] == {"a": 1, "b": 2}
 
 
 @pytest.fixture(name="lagging_term")
@@ -620,13 +623,13 @@ def test_peer_deletes_conflicting_log_entries_setup():
     commit_index = 0
 
     log = [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=2, command=None, data=None),
-        LogEntry(log_index=6, term=2, command=None, data=None),
-        LogEntry(log_index=7, term=2, command=None, data=None),
+        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": "foo"}),
+        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": "foo"}),
     ]
 
     key_store = None
@@ -641,7 +644,7 @@ def test_peer_deletes_conflicting_log_entries_setup():
             leader_id="leader_server",
             prev_log_index=4,
             prev_log_term=2,
-            entries=[LogEntry(log_index=5, term=4, command=None, data=None)],
+            entries=[LogEntry(log_index=5, term=4, command="_set", data={"key": "a", "value": 1})],
             leader_commit=1,
         )
     )
@@ -682,13 +685,13 @@ def test_peer_appends_new_entries_setup():
     commit_index = 0
 
     log = [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=2, command=None, data=None),
-        LogEntry(log_index=6, term=2, command=None, data=None),
-        LogEntry(log_index=7, term=2, command=None, data=None),
+        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 11}),
+        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 11}),
     ]
 
     key_store = None
@@ -703,8 +706,70 @@ def test_peer_appends_new_entries_setup():
             leader_id="leader_server",
             prev_log_index=7,
             prev_log_term=2,
-            entries=[LogEntry(log_index=8, term=2, command=None, data=None)],
+            entries=[LogEntry(log_index=8, term=2, command="_set", data={"key": "a", "value": 11})],
             leader_commit=1,
+        )
+    )
+
+    event_queues.state_machine.put_nowait(LocalStateSnapshotRequestForTesting())
+
+    proc = mp.Process(
+        target=common.start_state_machine,
+        args=(
+            event_queues,
+            startup_state,
+            peers,
+            initial_term,
+            election_timeout,
+            commit_index,
+            log,
+            key_store,
+            initialize_next_index,
+            "peer_server",
+        ),
+    )
+    proc.start()
+
+    time.sleep(0.1)
+
+    yield event_queues
+
+    proc.kill()
+
+
+@pytest.fixture(name="commit_and_advance")
+def test_peer_commits_entries_and_advances_commit_index_setup():
+    event_queues = common.create_event_queues()
+    peers = None
+    startup_state = "follower"
+    initial_term = 2
+    election_timeout = range(1000, 3000)
+    commit_index = 0
+
+    log = [
+        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 1}),
+        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 1}),
+    ]
+
+    key_store = None
+    initialize_next_index = False
+
+    event_queues.state_machine.put_nowait(
+        AppendEntries(
+            event_id=str(uuid.uuid4()),
+            source_server="leader_server",
+            destination_server="peer_server",
+            term=3,
+            leader_id="leader_server",
+            prev_log_index=7,
+            prev_log_term=2,
+            entries=[LogEntry(log_index=8, term=2, command="_set", data={"key": "b", "value": 2})],
+            leader_commit=8,
         )
     )
 

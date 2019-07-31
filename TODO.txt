@@ -1,5 +1,3 @@
-* Handle committing and advancing commit index on peer after handling append
-  entries
 * Add Log Class
 * Fix Breaking
   tests:tests/test_state_machine_leader_election.py::test_legitimate_leader_discovery_mid_election
@@ -8,6 +6,7 @@ FAILED
 * Fix network communications
 * Handle network failures on request for vote
 * Add log persistance  and storage
+* Fixup TODOS
 
 
 

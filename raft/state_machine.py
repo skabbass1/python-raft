@@ -111,9 +111,7 @@ class StateMachine:
     def _advance_commit_index(self):
         quorum = int(len(self._peers) / 2) + 1
         min_quorum_match_index = min(
-            sorted([p.match_index for p in self._peers.values()], reverse=True)[
-                :quorum
-            ]
+            sorted([p.match_index for p in self._peers.values()], reverse=True)[:quorum]
         )
         if min_quorum_match_index > self._commit_index:
             for idx in range(self._commit_index + 1, min_quorum_match_index + 1):
@@ -122,18 +120,14 @@ class StateMachine:
 
     def _send_client_responses(self):
         committed_requests = [
-            r
-            for r in self._pending_client_requests
-            if r.request_commit_index <= self._commit_index
+            r for r in self._pending_client_requests if r.request_commit_index <= self._commit_index
         ]
 
         if committed_requests:
             for request in committed_requests:
                 self._event_queues.client_response.put_nowait(
                     ClientRequestResponse(
-                        event_id=str(uuid.uuid4()),
-                        request_id=request.request_id,
-                        success=True,
+                        event_id=str(uuid.uuid4()), request_id=request.request_id, success=True
                     )
                 )
 
@@ -146,17 +140,14 @@ class StateMachine:
         timedout_requests = [
             r
             for r in self._pending_client_requests
-            if (time.monotonic() - r.request_receive_time)
-            > CLIENT_REQUEST_TIMEOUT_SECONDS
+            if (time.monotonic() - r.request_receive_time) > CLIENT_REQUEST_TIMEOUT_SECONDS
         ]
 
         if timedout_requests:
             for request in timedout_requests:
                 self._event_queues.client_response.put_nowait(
                     ClientRequestResponse(
-                        event_id=str(uuid.uuid4()),
-                        request_id=request.request_id,
-                        success=False,
+                        event_id=str(uuid.uuid4()), request_id=request.request_id, success=False
                     )
                 )
 
@@ -164,14 +155,11 @@ class StateMachine:
                 self._pending_client_requests[:] = [
                     r
                     for r in self._pending_client_requests
-                    if (time.monotonic() - r.request_receive_time)
-                    < CLIENT_REQUEST_TIMEOUT_SECONDS
+                    if (time.monotonic() - r.request_receive_time) < CLIENT_REQUEST_TIMEOUT_SECONDS
                 ]
 
     def _check_election_timeout_and_begin_election(self):
-        elapsed_time = (
-            time.monotonic() - self._election_timeout_clock_start_time
-        ) * 1000
+        elapsed_time = (time.monotonic() - self._election_timeout_clock_start_time) * 1000
         if self._state != "leader" and elapsed_time > self._election_timeout:
             self._begin_election()
 
@@ -202,6 +190,7 @@ class StateMachine:
             self._event_queues.dispatcher.put_nowait(event)
 
     def _handle_append_entries(self, event):
+        # TODO Functiont too big. Refactor into smaller chunks
         self._election_timeout_clock_start_time = time.monotonic()
 
         if event.term < self._term:
@@ -269,14 +258,20 @@ class StateMachine:
                         )
                     )
 
+                    indexes_to_commit = range(self._commit_index + 1, event.leader_commit + 1)
+                    for idx in indexes_to_commit:
+                        try:
+                            self._commit_log_entry(self._log[idx - 1])
+                            self._commit_index = idx
+                        except IndexError:
+                            continue
+
     def _handle_request_for_vote(self, event):
         candidate_log_up_to_date = False
         vote_granted = False
 
         last_log_entry = (
-            self._log[-1]
-            if self._log
-            else LogEntry(log_index=0, term=0, command=None, data=None)
+            self._log[-1] if self._log else LogEntry(log_index=0, term=0, command=None, data=None)
         )
 
         if event.last_log_term > last_log_entry.term or (
@@ -314,10 +309,7 @@ class StateMachine:
             if event.term == self._term:
                 if event.vote_granted:
                     self._votes_received += 1
-                    if (
-                        self._votes_received
-                        > len(self._peers) - self._votes_received
-                    ):
+                    if self._votes_received > len(self._peers) - self._votes_received:
                         self._transition_to_leader_state()
             elif event.term > self._term:
                 self._state = "follower"
@@ -326,10 +318,7 @@ class StateMachine:
 
     def _handle_client_request(self, event):
         log_entry = LogEntry(
-            log_index=len(self._log) + 1,
-            term=self._term,
-            command=event.command,
-            data=event.data,
+            log_index=len(self._log) + 1, term=self._term, command=event.command, data=event.data
         )
         self._log.append(log_entry)
         self._event_queues.log_writer.put_nowait(log_entry)
@@ -400,13 +389,9 @@ class StateMachine:
                 entries = self._log[peer.next_index - 1 :]
                 if len(self._log) > 0:
                     prev_log_index = (
-                        entries[0].log_index - 1
-                        if entries
-                        else self._log[-1].log_index
+                        entries[0].log_index - 1 if entries else self._log[-1].log_index
                     )
-                    prev_log_term = (
-                        entries[0].term if entries else self._log[-1].term
-                    )
+                    prev_log_term = entries[0].term if entries else self._log[-1].term
                 else:
                     prev_log_index = 0
                     prev_log_term = 0
@@ -423,12 +408,10 @@ class StateMachine:
                     entries=entries,
                 )
                 self._event_queues.dispatcher.put_nowait(append_entries)
-                peer.next_heartbeat_time = (
-                    time.monotonic() + NEXT_HEARTBEAT_DELAY_SECONDS
-                )
+                peer.next_heartbeat_time = time.monotonic() + NEXT_HEARTBEAT_DELAY_SECONDS
 
     def _commit_log_entry(self, log_entry):
-        self._apply_command(log_entry[2], log_entry[3])
+        self._apply_command(log_entry.command, log_entry.data)
 
     def _apply_command(self, command, data):
         command_func = getattr(self, command)
