@@ -16,6 +16,7 @@ from raft.structures.events import (
 )
 from raft.structures.event_trigger import EventTrigger
 from raft.structures.log_entry import LogEntry
+from raft.structures.memory_log import MemoryLog
 from raft.structures.peer import Peer
 from . import common
 
@@ -608,11 +609,12 @@ def lagging_peer_setup():
     initial_term = 0
     election_timeout = range(150, 300)
     commit_index = 3
-    log=[
-        LogEntry(log_index=1, term=0, command='_set', data={'key': 'x', 'value':1}),
-        LogEntry(log_index=2, term=0, command='_set', data={'key': 'y', 'value':2}),
-        LogEntry(log_index=3, term=0, command='_set', data={'key': 'z', 'value':5}),
-    ]
+
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=0, command='_set', data={'key': 'x', 'value':1}))
+    log.append(LogEntry(log_index=2, term=0, command='_set', data={'key': 'y', 'value':2}))
+    log.append(LogEntry(log_index=3, term=0, command='_set', data={'key': 'z', 'value':5}))
+
     key_store=None
     initialize_next_index=False
 

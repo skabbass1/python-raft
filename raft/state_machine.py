@@ -17,6 +17,7 @@ from raft.structures.events import (
     LocalStateSnapshotForTesting,
 )
 from raft.structures.log_entry import LogEntry
+from raft.structures.memory_log import MemoryLog
 from raft.structures.event_trigger import EventTrigger
 from raft.structures.pending_client_request import PendingClientRequest
 
@@ -59,7 +60,7 @@ class StateMachine:
         self._voted_for = None
 
         # TODO  boostrap log and keystore from disk
-        self._log = log or []
+        self._log = log or MemoryLog()
         self._key_store = key_store or {}
         # TODO custom data structure for client requests
         self._pending_client_requests = []
@@ -115,7 +116,7 @@ class StateMachine:
         )
         if min_quorum_match_index > self._commit_index:
             for idx in range(self._commit_index + 1, min_quorum_match_index + 1):
-                self._commit_log_entry(self._log[idx - 1])
+                self._commit_log_entry(self._log.at(idx))
                 self._commit_index = idx
 
     def _send_client_responses(self):
@@ -184,8 +185,8 @@ class StateMachine:
                 destination_server=peer.name,
                 term=self._term,
                 candidate_id=self._name,
-                last_log_index=len(self._log) if self._log else 0,
-                last_log_term=self._log[-1].term if self._log else 0,
+                last_log_index=self._log.last_index(),
+                last_log_term=self._log.last_term(),
             )
             self._event_queues.dispatcher.put_nowait(event)
 
@@ -199,7 +200,7 @@ class StateMachine:
                     event_id=str(uuid.uuid4()),
                     source_server=self._name,
                     destination_server=event.source_server,
-                    last_log_index=self._log[-1].log_index,
+                    last_log_index=self._log.last_index(),
                     term=self._term,
                     success=False,
                 )
@@ -210,30 +211,25 @@ class StateMachine:
                 self._term = event.term
                 self._voted_for = None
 
-                last_log_entry = (
-                    self._log[-1]
-                    if self._log
-                    else LogEntry(log_index=0, term=0, command=None, data=None)
-                )
-                if event.prev_log_index > last_log_entry.log_index:
+                if event.prev_log_index > self._log.last_entry().log_index:
                     self._event_queues.dispatcher.put_nowait(
                         AppendEntriesResponse(
                             event_id=str(uuid.uuid4()),
                             source_server=self._name,
                             destination_server=event.source_server,
-                            last_log_index=self._log[-1].log_index,
+                            last_log_index=self._log.last_index(),
                             term=self._term,
                             success=False,
                         )
                     )
 
-                elif event.prev_log_term != self._log[event.prev_log_index - 1].term:
+                elif event.prev_log_term != self._log.at(event.prev_log_index).term:
                     self._event_queues.dispatcher.put_nowait(
                         AppendEntriesResponse(
                             event_id=str(uuid.uuid4()),
                             source_server=self._name,
                             destination_server=event.source_server,
-                            last_log_index=self._log[-1].log_index,
+                            last_log_index=self._log.last_index(),
                             term=self._term,
                             success=False,
                         )
@@ -243,8 +239,8 @@ class StateMachine:
                         if entry.log_index > len(self._log):
                             self._log.append(entry)
                         else:
-                            if entry.term != self._log[entry.log_index - 1].term:
-                                del self._log[entry.log_index - 1 :]
+                            if entry.term != self._log.at(entry.log_index).term:
+                                self._log.delete_from(entry.log_index)
                                 self._log.append(entry)
 
                     self._event_queues.dispatcher.put_nowait(
@@ -252,7 +248,7 @@ class StateMachine:
                             event_id=str(uuid.uuid4()),
                             source_server=self._name,
                             destination_server=event.source_server,
-                            last_log_index=self._log[-1].log_index,
+                            last_log_index=self._log.last_index(),
                             term=self._term,
                             success=True,
                         )
@@ -261,7 +257,7 @@ class StateMachine:
                     indexes_to_commit = range(self._commit_index + 1, event.leader_commit + 1)
                     for idx in indexes_to_commit:
                         try:
-                            self._commit_log_entry(self._log[idx - 1])
+                            self._commit_log_entry(self._log.at(idx))
                             self._commit_index = idx
                         except IndexError:
                             continue
@@ -270,9 +266,7 @@ class StateMachine:
         candidate_log_up_to_date = False
         vote_granted = False
 
-        last_log_entry = (
-            self._log[-1] if self._log else LogEntry(log_index=0, term=0, command=None, data=None)
-        )
+        last_log_entry = self._log.last_entry()
 
         if event.last_log_term > last_log_entry.term or (
             event.last_log_term == last_log_entry.term
@@ -318,7 +312,7 @@ class StateMachine:
 
     def _handle_client_request(self, event):
         log_entry = LogEntry(
-            log_index=len(self._log) + 1, term=self._term, command=event.command, data=event.data
+            log_index=self._log.next_index(), term=self._term, command=event.command, data=event.data
         )
         self._log.append(log_entry)
         self._event_queues.log_writer.put_nowait(log_entry)
@@ -362,7 +356,7 @@ class StateMachine:
                     "voted_for": self._voted_for,
                     "commit_index": self._commit_index,
                     "key_store": self._key_store,
-                    "log": self._log,
+                    "log": self._log.entries_from(1),
                     "pending_client_requests": self._pending_client_requests,
                 }
             )
@@ -376,7 +370,7 @@ class StateMachine:
 
     def _initialize_next_index(self):
         for peer in self._peers.values():
-            peer.next_index = len(self._log) + 1
+            peer.next_index = self._log.next_index()
             peer.match_index = 0
 
     def _send_append_entries(self):
@@ -386,15 +380,9 @@ class StateMachine:
             now = time.monotonic()
             # TODO Dont send if peer in bad state. Wait until backoff timeout
             if now > max(peer.next_heartbeat_time, peer.backoff_until):
-                entries = self._log[peer.next_index - 1 :]
-                if len(self._log) > 0:
-                    prev_log_index = (
-                        entries[0].log_index - 1 if entries else self._log[-1].log_index
-                    )
-                    prev_log_term = entries[0].term if entries else self._log[-1].term
-                else:
-                    prev_log_index = 0
-                    prev_log_term = 0
+                entries = self._log.entries_from(peer.next_index)
+                prev_log_index =  entries[0].log_index - 1 if entries else self._log.last_index()
+                prev_log_term = entries[0].term if entries else self._log.last_term()
 
                 append_entries = AppendEntries(
                     event_id=str(uuid.uuid4()),
@@ -402,8 +390,8 @@ class StateMachine:
                     destination_server=peer.name,
                     term=self._term,
                     leader_id=self._name,
-                    prev_log_index=self._log[-1].log_index if self._log else 0,
-                    prev_log_term=self._log[-1].term if self._log else 0,
+                    prev_log_index=self._log.last_index(),
+                    prev_log_term=self._log.last_term(),
                     leader_commit=self._commit_index,
                     entries=entries,
                 )

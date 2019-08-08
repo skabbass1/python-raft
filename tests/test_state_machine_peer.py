@@ -6,6 +6,7 @@ import pytest
 
 from raft.structures.node_config import NodeConfig
 from raft.structures.log_entry import LogEntry
+from raft.structures.memory_log import MemoryLog
 from raft.structures.events import (
     AppendEntries,
     RequestVote,
@@ -145,10 +146,9 @@ def test_peer_denies_vote_if_candidate_term_less_than_peer_term_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=3, command=None, data=None),
-        LogEntry(log_index=2, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -198,12 +198,11 @@ def test_peer_denies_vote_if_candidate_log_not_up_to_date_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=3, command=None, data=None),
-        LogEntry(log_index=2, term=3, command=None, data=None),
-        LogEntry(log_index=3, term=3, command=None, data=None),
-        LogEntry(log_index=4, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=3, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=4, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -253,10 +252,9 @@ def test_peer_grants_vote_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=3, command=None, data=None),
-        LogEntry(log_index=2, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -308,10 +306,9 @@ def test_peer_does_not_vote_more_than_once_for_the_same_term_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=3, command=None, data=None),
-        LogEntry(log_index=2, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -375,12 +372,11 @@ def test_peer_resets_voted_for_and_current_term_for_on_new_term_greater_than_cur
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=3, command=None, data=None),
-        LogEntry(log_index=2, term=3, command=None, data=None),
-        LogEntry(log_index=3, term=3, command=None, data=None),
-        LogEntry(log_index=4, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=3, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=4, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -446,16 +442,15 @@ def test_peer_rejects_append_entries_if_new_term_less_than_current_term_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=3, command=None, data=None),
-        LogEntry(log_index=6, term=3, command=None, data=None),
-        LogEntry(log_index=7, term=3, command=None, data=None),
-        LogEntry(log_index=8, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=3, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=4, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=5, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=6, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=7, term=3, command=None, data=None))
+    log.append(LogEntry(log_index=8, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -507,13 +502,12 @@ def test_peer_rejects_append_entries_on_incoherent_log_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-        LogEntry(log_index=5, term=3, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=3, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=4, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=5, term=3, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -565,12 +559,11 @@ def test_peer_rejects_append_entries_on_term_mismatch_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command=None, data=None),
-        LogEntry(log_index=2, term=2, command=None, data=None),
-        LogEntry(log_index=3, term=2, command=None, data=None),
-        LogEntry(log_index=4, term=2, command=None, data=None),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=2, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=3, term=2, command=None, data=None))
+    log.append(LogEntry(log_index=4, term=2, command=None, data=None))
 
     key_store = None
     initialize_next_index = False
@@ -622,15 +615,14 @@ def test_peer_deletes_conflicting_log_entries_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": "foo"}),
-        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": "foo"}),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": "foo"}))
+    log.append(LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": "foo"}))
 
     key_store = None
     initialize_next_index = False
@@ -684,15 +676,14 @@ def test_peer_appends_new_entries_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 11}),
-        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 11}),
-    ]
+    log = MemoryLog()
+    log.append(LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 11}))
+    log.append(LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 11}))
 
     key_store = None
     initialize_next_index = False
@@ -746,15 +737,15 @@ def test_peer_commits_entries_and_advances_commit_index_setup():
     election_timeout = range(1000, 3000)
     commit_index = 0
 
-    log = [
-        LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 1}),
-        LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 1}),
-    ]
+    log = MemoryLog()
+
+    log.append(LogEntry(log_index=1, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=2, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=3, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=4, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=5, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=6, term=2, command="_set", data={"key": "a", "value": 1}))
+    log.append(LogEntry(log_index=7, term=2, command="_set", data={"key": "a", "value": 1}))
 
     key_store = None
     initialize_next_index = False
